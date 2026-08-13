@@ -174,3 +174,28 @@ sont justes chacun selon sa propre règle.
 
 Régressions : `ui/src/features/notifications/preview.test.ts` et le bloc
 « l'aperçu tient la promesse du badge » de `NotificationsBell.test.tsx`.
+
+### Le lien servi est le lien résolu
+
+`deep_link_for(notif)` = `notif.url` → `_DEEP_LINKS[type]` → `/app/dashboard`.
+Elle n'était appelée que par `_mirror_to_web_push`, pendant que
+`NotificationSerializer` exposait la **colonne brute** : une alerte météo (seul
+émetteur à ne pas passer d'`url`) menait à sa page depuis la notification
+système et **nulle part** depuis la cloche. Le serializer sert désormais le lien
+résolu — un même fait n'a qu'une destination, et les deux canaux lisent la même
+fonction.
+
+- **Tout type de `Notification.Type` déclare sa destination.** Un catalogue
+  incomplet est invisible : le repli est toujours une page valide, donc un type
+  oublié atterrit sur le dashboard sans que rien ne le signale. `weather_alert`
+  s'était déjà fait oublier dans `MUTABLE_TYPES` et dans l'affichage admin —
+  c'était la troisième fois. Tenu par
+  `test_deep_links.py::TestTheDeepLinkCatalogueCoversEveryType`.
+- **Un émetteur passe quand même son `url`.** Le repli par type rattrape l'oubli,
+  il ne dispense pas de viser juste : « Stock bas : café » mène à l'article, pas à
+  200 lignes d'inventaire. Le repli est pour ce qui mène à un *endroit*.
+- **Il n'y a pas de page de détail de notification, et il n'en faut pas.** Une
+  notification mène à la *chose* qu'elle annonce ; une page qui répéterait son
+  titre et son corps — déjà lus dans la ligne — serait un cul-de-sac. C'est
+  pourquoi le test du catalogue porte sur des destinations métier
+  (`/app/stock`, `/app/weather`, `/app/chickens`) et non sur `/app/notifications/{id}`.

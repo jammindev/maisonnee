@@ -25,8 +25,14 @@ User = get_user_model()
 # `task_completed` / `expense_added` are deliberately NOT declared yet: an
 # enum value without an emitter is dead code.
 FANOUT = Notification.Type.STOCK_LOW
-# A real type that `_DEEP_LINKS` does not map — weather has no landing page.
-UNMAPPED = Notification.Type.WEATHER_ALERT
+# Deliberately NOT a real type: `test_deep_links.py` now requires every member of
+# `Notification.Type` to declare where it leads, so any real type used here would
+# have to be one that ought to be mapped — and this test would then be asking for
+# the catalogue to stay incomplete. `weather_alert` played that role until it got
+# its `/app/weather` entry, and pinning the fallback to it turned a legitimate fix
+# into a red test. What is under test is the *fallback branch* of
+# `deep_link_for`, which only an unknown string can reach.
+UNMAPPED = "a_type_with_no_landing_page"
 
 
 @pytest.fixture

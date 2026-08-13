@@ -1643,6 +1643,20 @@ qu'il dit, pas comment il le diffuse. Doc : `docs/MODULES/notifications.md`.
   la cloche s'en tenait à `mark-read`, donc le même objet menait quelque part sur
   `/app/notifications` et nulle part dans le dropdown — ce qui y laissait des
   lignes lues s'empiler sans qu'on ait jamais pu en faire quoi que ce soit.
+- **⚠️ L'API sert le lien *résolu*, jamais la colonne brute.** `deep_link_for`
+  (`url` → `_DEEP_LINKS[type]` → `/app/dashboard`) n'était appelée que par le
+  miroir Web Push, pendant que `NotificationSerializer` exposait `url` tel quel :
+  une alerte météo menait à sa page depuis la notification système et **nulle
+  part** depuis la cloche, faute d'`url` sur la ligne. Un même fait ne peut pas
+  avoir deux destinations, et celle qui manquait était celle qu'on lit dans
+  l'app. Corollaire tenu par test : **tout membre de `Notification.Type` déclare
+  sa destination** dans `_DEEP_LINKS`. Un catalogue incomplet est invisible — le
+  repli est toujours une page valide, donc un type non déclaré atterrit sur le
+  dashboard sans que rien ne le signale (c'est la troisième fois que
+  `weather_alert` se fait oublier dans un catalogue, après `MUTABLE_TYPES` et
+  l'affichage admin). Et **il n'y a pas de page de détail de notification** : une
+  notification mène à la *chose* qu'elle annonce, jamais à une page qui répète
+  son propre titre. Régression : `apps/notifications/tests/test_deep_links.py`.
 - **⚠️ L'aperçu de la cloche doit montrer ce que le badge annonce**
   (`features/notifications/preview.ts`). Le badge compte tous les non-lus ;
   l'aperçu était un `slice(0, 5)` trié **par date**, donc l'état lu/non-lu
