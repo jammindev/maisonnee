@@ -5,10 +5,10 @@ from django.conf.urls.static import static
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
+from rest_framework_simplejwt.views import TokenVerifyView
 
 from . import admin_ordering as _admin_ordering
-from accounts.views import TokenObtainPairWithSessionView
+from accounts.views import TokenObtainPairWithSessionView, TokenRefreshWithSessionView
 from core.views_health import health
 from core.views_media import serve_protected_media
 
@@ -19,7 +19,7 @@ urlpatterns = [
     path("health/", health, name="health"),
     path("admin/", admin.site.urls),
     path("api/auth/token/", TokenObtainPairWithSessionView.as_view(), name="token_obtain_pair"),
-    path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/auth/token/refresh/", TokenRefreshWithSessionView.as_view(), name="token_refresh"),
     path("api/auth/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
     path("api/accounts/", include("accounts.urls")),
     path("api/households/", include("households.urls")),
