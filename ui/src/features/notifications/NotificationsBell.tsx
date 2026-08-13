@@ -112,7 +112,11 @@ export default function NotificationsBell() {
                 {t('alerts.title')}
                 <span className="text-muted-foreground">({alerts.length})</span>
               </DropdownMenuLabel>
-              <Link to="/app/alerts" className="text-xs text-primary hover:underline">
+              <Link
+                to="/app/alerts"
+                onClick={() => setOpen(false)}
+                className="text-xs text-primary hover:underline"
+              >
                 {t('alerts.viewAll')}
               </Link>
             </div>
@@ -160,6 +164,7 @@ export default function NotificationsBell() {
         <div className="px-1 py-1">
           <Link
             to="/app/notifications"
+            onClick={() => setOpen(false)}
             className="block w-full rounded-md px-2 py-1.5 text-center text-xs font-medium text-primary hover:bg-primary/10"
           >
             {t('notifications.viewAll')}
