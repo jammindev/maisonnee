@@ -414,7 +414,7 @@ class TokenRefreshWithSessionView(TokenRefreshView):
         if user is None:
             return
 
-        if request.session.get(SESSION_KEY) == str(user.pk):
+        if self._session_already_holds(request, user):
             # Session vivante, et déjà la bonne : on repousse seulement
             # l'échéance. Un `auth_login` ferait tourner le jeton CSRF à chaque
             # refresh — soit tous les quarts d'heure, sous les pieds d'un
@@ -426,6 +426,23 @@ class TokenRefreshWithSessionView(TokenRefreshView):
                 user,
                 backend='django.contrib.auth.backends.ModelBackend',
             )
+
+    @staticmethod
+    def _session_already_holds(request, user):
+        """La session porte-t-elle déjà *cet* utilisateur ?
+
+        La comparaison passe par le champ de clé primaire, comme le fait
+        ``django.contrib.auth._get_user_session_key`` : la session stocke une
+        chaîne, et comparer des chaînes marcherait tant que la clé est un
+        entier pour se mettre à mentir le jour où elle devient un UUID.
+        """
+        stored = request.session.get(SESSION_KEY)
+        if stored is None:
+            return False
+        try:
+            return User._meta.pk.to_python(stored) == user.pk
+        except (ValueError, TypeError, ValidationError):
+            return False
 
     @staticmethod
     def _user_of(raw_token):
