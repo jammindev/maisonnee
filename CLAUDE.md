@@ -1639,7 +1639,25 @@ qu'il dit, pas comment il le diffuse. Doc : `docs/MODULES/notifications.md`.
 - **`url` est porté par la ligne, `_DEEP_LINKS` n'est qu'un fallback.** La famille
   est entité-scopée : « Bob a terminé Tondre la pelouse » doit ouvrir *cette*
   tâche. Une notification qui annonce sans mener fait refaire au lecteur la
-  recherche qu'elle venait de faire pour lui.
+  recherche qu'elle venait de faire pour lui. **Et les deux écrans le lisent** :
+  la cloche s'en tenait à `mark-read`, donc le même objet menait quelque part sur
+  `/app/notifications` et nulle part dans le dropdown — ce qui y laissait des
+  lignes lues s'empiler sans qu'on ait jamais pu en faire quoi que ce soit.
+- **⚠️ L'aperçu de la cloche doit montrer ce que le badge annonce**
+  (`features/notifications/preview.ts`). Le badge compte tous les non-lus ;
+  l'aperçu était un `slice(0, 5)` trié **par date**, donc l'état lu/non-lu
+  n'entrait pas dans le choix des lignes affichées alors qu'il fonde le badge.
+  Cinq lues arrivées après un non-lu le rendaient introuvable pendant que le
+  badge affichait « 1 » : chaque chiffre juste selon sa propre règle, l'écart
+  invisible. Trois conséquences à préserver — **lire n'est pas supprimer** (les
+  lues restent, derrière les non-lues : `deleted_at` existe pour écarter, et
+  vider l'aperçu à la lecture ferait disparaître la ligne sous le curseur qui la
+  clique) ; **l'ordre est figé à l'ouverture**, et seul l'ordre, le contenu
+  restant frais (sinon marquer lu fait glisser la ligne et monter la suivante —
+  on clique à côté, même règle que la jambe sémantique de la recherche) ; et
+  **une ligne mène à son entité**. Régressions :
+  `features/notifications/preview.test.ts` et le bloc « l'aperçu tient la
+  promesse du badge » de `NotificationsBell.test.tsx`.
 - **`dedup_key` remplace les anti-doublons maison** (il y en avait trois formes).
   Portée `(user, type, key)` **vivant** : soft-supprimer libère la clé, parce que
   c'est l'utilisateur qui dit qu'il en a fini.

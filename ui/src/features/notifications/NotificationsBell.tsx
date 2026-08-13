@@ -1,6 +1,7 @@
+import * as React from 'react';
 import { AlertCircle, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import {
   DropdownMenu,
@@ -14,10 +15,12 @@ import { useAlertsSummary } from '@/features/alerts/hooks';
 import { EMPTY_ALERTS_SUMMARY, buildAlertSections, flattenAlertRows, type AlertRow } from '@/features/alerts/rows';
 import { Button } from '@/design-system/button';
 import { appLocale } from '@/lib/format';
+import { pushBack } from '@/lib/backNavigation';
 import { triggerBellRefresh } from '@/lib/notifications';
 import type { NotificationItem } from '@/lib/api/notifications';
 
 import { useMarkAllRead, useMarkRead, useNotifications, useUnreadCount } from './hooks';
+import { buildBellPreview } from './preview';
 
 const MAX_PREVIEW = 5;
 const MAX_ALERTS_PREVIEW = 3;
@@ -45,8 +48,21 @@ export default function NotificationsBell() {
   const { data: alertsSummary } = useAlertsSummary();
   const markAllRead = useMarkAllRead();
 
-  const preview = notifications.slice(0, MAX_PREVIEW);
+  // L'ordre de l'aperçu est calculé à l'ouverture puis **figé** tant que le menu
+  // reste ouvert : marquer une ligne lue la ferait sinon glisser derrière les
+  // autres non-lues, sous le curseur de celui qui allait cliquer la suivante.
+  const [open, setOpen] = React.useState(false);
+  const [pinnedIds, setPinnedIds] = React.useState<readonly string[]>([]);
+
+  const preview = buildBellPreview(notifications, MAX_PREVIEW, pinnedIds);
   const hasUnread = unreadCount > 0;
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    setPinnedIds(
+      nextOpen ? buildBellPreview(notifications, MAX_PREVIEW).map((n) => n.id) : [],
+    );
+  }
 
   // Une alerte est un état recalculé, pas un événement : elle ne se lit ni ne
   // s'écarte. L'ajouter au badge chiffré fabriquerait un compteur qui ne
@@ -61,7 +77,7 @@ export default function NotificationsBell() {
     : t('notifications.bellAriaLabel');
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -103,7 +119,7 @@ export default function NotificationsBell() {
             <ul className="py-1">
               {alertsPreview.map((row) => (
                 <li key={row.key}>
-                  <AlertDropdownItem row={row} />
+                  <AlertDropdownItem row={row} onNavigate={() => setOpen(false)} />
                 </li>
               ))}
             </ul>
@@ -134,7 +150,7 @@ export default function NotificationsBell() {
           <ul className="max-h-96 overflow-y-auto py-1">
             {preview.map((n) => (
               <li key={n.id}>
-                <NotificationDropdownItem notification={n} />
+                <NotificationDropdownItem notification={n} onNavigate={() => setOpen(false)} />
               </li>
             ))}
           </ul>
@@ -155,10 +171,11 @@ export default function NotificationsBell() {
 }
 
 /** Une alerte de l'aperçu : elle annonce, et elle mène. */
-function AlertDropdownItem({ row }: { row: AlertRow }) {
+function AlertDropdownItem({ row, onNavigate }: { row: AlertRow; onNavigate: () => void }) {
   return (
     <Link
       to={row.to}
+      onClick={onNavigate}
       data-testid="bell-alert-row"
       className="flex items-start gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent"
     >
@@ -176,8 +193,15 @@ function AlertDropdownItem({ row }: { row: AlertRow }) {
   );
 }
 
-function NotificationDropdownItem({ notification }: { notification: NotificationItem }) {
+function NotificationDropdownItem({
+  notification,
+  onNavigate,
+}: {
+  notification: NotificationItem;
+  onNavigate: () => void;
+}) {
   const { t } = useTranslation();
+  const location = useLocation();
   const markRead = useMarkRead();
   const acceptMutation = useAcceptInvitation();
   const declineMutation = useDeclineInvitation();
@@ -185,12 +209,23 @@ function NotificationDropdownItem({ notification }: { notification: Notification
   const isInvitation = notification.type === 'household_invitation';
   const invitationId = (notification.payload?.invitation_id as string | undefined) ?? null;
 
+  // Une invitation porte ses propres boutons : l'envelopper dans un lien
+  // avalerait « Accepter »/« Refuser ». Partout ailleurs la ligne mène à ce
+  // qu'elle annonce — comme la carte de `/app/notifications`, qui lisait déjà
+  // `url` alors que la cloche l'ignorait et se contentait de marquer lu.
+  const to = !isInvitation && notification.url ? notification.url : null;
+
   const isAccepting = acceptMutation.isPending && acceptMutation.variables?.invitationId === invitationId;
   const isDeclining = declineMutation.isPending && declineMutation.variables === invitationId;
   const isLoading = isAccepting || isDeclining;
 
   function handleClick() {
     if (!notification.is_read) markRead.mutate(notification.id);
+  }
+
+  function handleNavigate() {
+    handleClick();
+    onNavigate();
   }
 
   async function handleAccept() {
@@ -208,13 +243,12 @@ function NotificationDropdownItem({ notification }: { notification: Notification
     triggerBellRefresh();
   }
 
-  return (
-    <div
-      className={`flex flex-col gap-1 px-3 py-2 text-sm transition-colors hover:bg-accent ${
-        notification.is_read ? '' : 'bg-primary/5'
-      }`}
-      onClick={handleClick}
-    >
+  const rowClass = `flex flex-col gap-1 px-3 py-2 text-sm transition-colors hover:bg-accent ${
+    notification.is_read ? '' : 'bg-primary/5'
+  }`;
+
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium leading-tight text-foreground">{notification.title}</p>
         {!notification.is_read && (
@@ -252,6 +286,26 @@ function NotificationDropdownItem({ notification }: { notification: Notification
           </Button>
         </div>
       ) : null}
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link
+        to={to}
+        state={pushBack(location)}
+        onClick={handleNavigate}
+        className={rowClass}
+        data-testid="bell-notification-row"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={rowClass} onClick={handleClick} data-testid="bell-notification-row">
+      {content}
     </div>
   );
 }

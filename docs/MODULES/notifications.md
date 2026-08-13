@@ -5,7 +5,7 @@
 ## État synthétique
 
 - **Backend** : Présent
-- **Frontend** : Absent (pas de `ui/src/features/notifications/`, seul `ui/src/lib/notifications.ts` existe pour le bell HTMX legacy)
+- **Frontend** : Présent — `ui/src/features/notifications/` (cloche de la `TopBar`, page `/app/notifications`, carte, aperçu)
 - **Locales (en/fr/de/es)** : namespace manquant : `notifications` absent dans les 4 locales
 - **Tests** : oui — 2 fichiers (`test_notifications.py`, `test_notifications_extra.py`)
 - **Migrations** : 2 (`0001_initial.py`, `0002_notification_soft_delete.py`)
@@ -142,3 +142,35 @@ une string littérale persiste sans broncher. `weather_alert` a vécu ainsi, abs
 de l'affichage admin, absent de `MUTABLE_TYPES`, invisible pour qui lisait la
 liste des types. Tout nouveau type se déclare dans `Notification.Type`, et son
 appartenance à `MUTABLE_TYPES` est une décision explicite.
+
+### La cloche montre ce que le badge annonce
+
+`ui/src/features/notifications/preview.ts::buildBellPreview` décide des lignes de
+l'aperçu. Il existe parce que l'aperçu était un `slice(0, 5)` de la liste triée
+par date : l'état lu/non-lu n'entrait pas dans le choix des lignes affichées,
+alors qu'il **fonde** le badge. Cinq notifications lues arrivées après un non-lu
+suffisaient à rendre ce non-lu introuvable dans la cloche pendant que le badge
+affichait « 1 ». C'est « un compteur ne peut pas avoir deux définitions »
+appliqué à un aperçu — sauf qu'ici l'écart ne se voit pas : les deux chiffres
+sont justes chacun selon sa propre règle.
+
+- **Lire n'est pas supprimer.** Retirer les lues de l'aperçu ferait disparaître
+  la ligne sous le curseur au moment même où on la clique, et personne ne
+  pourrait revenir sur ce qu'il vient d'ouvrir. `deleted_at` existe pour
+  écarter, et écarter reste un geste explicite — même arbitrage que les
+  arbitrages de conformité. Les lues restent donc affichées, elles cessent
+  seulement de passer devant un non-lu.
+- **L'ordre est figé à l'ouverture** (`pinnedIds`), et seul l'ordre : le contenu
+  de chaque ligne est relu frais. Sans ce gel, cliquer un non-lu le fait glisser
+  derrière les autres non-lus et la ligne suivante monte sous le curseur — on
+  clique à côté. Même règle que la jambe sémantique de la recherche globale : on
+  ajoute au bas de ce que l'utilisateur lit, on ne réordonne pas sous ses yeux.
+- **Une ligne de la cloche mène à ce qu'elle annonce**, en lisant le même
+  `notification.url` que `NotificationCard` sur `/app/notifications`. Le
+  dropdown se contentait de `mark-read` : le même objet menait quelque part dans
+  un écran et nulle part dans l'autre, ce qui laissait des notifications lues
+  s'empiler sans qu'on ait jamais pu en faire quoi que ce soit. Une invitation
+  reste l'exception — l'envelopper dans un lien avalerait ses propres boutons.
+
+Régressions : `ui/src/features/notifications/preview.test.ts` et le bloc
+« l'aperçu tient la promesse du badge » de `NotificationsBell.test.tsx`.
