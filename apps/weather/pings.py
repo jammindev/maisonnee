@@ -57,6 +57,10 @@ def _notify_bell(household, user, today: date, alerts: list[dict], message: str)
         NOTIFICATION_TYPE,
         title=_("Weather alert"),
         body=message,
+        # La seule notification du catalogue qui ne disait pas où elle mène : le
+        # repli par type la rattrape désormais, mais un émetteur déclare sa
+        # destination — c'est lui qui sait de quoi il parle.
+        url="/app/weather",
         dedup_key=f"weather:{day}",
         payload={
             "household_id": str(household.id),

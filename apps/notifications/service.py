@@ -26,11 +26,22 @@ BELL_REFRESH_EVENT = "bellRefresh"
 # to a *place* rather than to a *thing*. Anything entity-scoped passes its own
 # ``url`` instead — see ``Notification.url``. The service worker falls back to
 # /app/dashboard for whatever neither provides.
+#
+# **Every type in ``Notification.Type`` has an entry here**, and a test enforces
+# it (``test_deep_links.py``). An incomplete catalogue is invisible: the fallback
+# is always a valid page, so a missing type simply lands on the dashboard and
+# nobody can tell it was never declared. ``weather_alert`` had already lived
+# outside ``MUTABLE_TYPES`` and outside the admin display for the same reason.
 _DEEP_LINKS = {
     Notification.Type.STOCK_LOW: "/app/stock",
     Notification.Type.STOCK_OUT: "/app/stock",
     Notification.Type.HOUSEHOLD_INVITATION: "/app/dashboard",
     Notification.Type.HOUSEHOLD_MEMBER_JOINED: "/app/settings",
+    Notification.Type.WEATHER_ALERT: "/app/weather",
+    Notification.Type.CHICKEN_CHORE_DUE: "/app/chickens",
+    Notification.Type.TASK_CREATED: "/app/tasks",
+    Notification.Type.NOTE_CREATED: "/app/interactions",
+    Notification.Type.HUNT_SUGGESTION: "/app/games",
 }
 
 DEFAULT_DEEP_LINK = "/app/dashboard"
