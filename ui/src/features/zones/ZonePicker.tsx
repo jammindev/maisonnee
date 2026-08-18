@@ -304,7 +304,7 @@ export default function ZonePicker(props: ZonePickerProps) {
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('zones.searchPlaceholder')}
               aria-label={t('zones.searchPlaceholder')}
-              className="h-8 pl-8 text-sm"
+              className="h-8 pl-8 md:text-sm"
             />
           </div>
 

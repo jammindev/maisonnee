@@ -48,7 +48,7 @@ export default function EggLogBanner() {
             value={date}
             max={todayIsoDate()}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 h-8 w-40 text-xs"
+            className="mt-1 h-8 w-40 md:text-xs"
             aria-label={t('chickens.eggs.pick_date')}
           />
         </div>

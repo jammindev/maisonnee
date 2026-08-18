@@ -348,7 +348,7 @@ export default function InteractionEditPage() {
             </label>
             <select
               id="interaction-contact"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="text-base flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 md:text-sm"
               value={contactId}
               onChange={(e) => setContactId(e.target.value)}
             >
@@ -369,7 +369,7 @@ export default function InteractionEditPage() {
             </label>
             <select
               id="interaction-structure"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="text-base flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 md:text-sm"
               value={structureId}
               onChange={(e) => setStructureId(e.target.value)}
             >
@@ -390,7 +390,7 @@ export default function InteractionEditPage() {
           </label>
           <select
             id="interaction-equipment"
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="text-base flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 md:text-sm"
             value={equipmentId}
             onChange={(e) => setEquipmentId(e.target.value)}
           >

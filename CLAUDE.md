@@ -1129,6 +1129,46 @@ doivent être le même nombre. Régressions : `ui/src/design-system/decimal-inpu
 `e2e/decimal-input.spec.ts` — **le bug n'existait que dans un vrai moteur, jamais
 en jsdom : il fallait un test navigateur pour l'attester.**
 
+### Un champ de saisie fait 16px sur mobile — sinon iOS zoome
+
+Le troisième volet de la même famille : la taille du texte d'un champ vit dans
+**`fieldBase` (`ui/src/design-system/field-styles.ts`), et seulement là** —
+`text-base md:text-sm`, donc 16px sur mobile et 14px à partir de `md`. Un site
+d'appel ne la repose jamais sans préfixe de variante. Régression :
+`ui/src/design-system/field-font-size.test.ts`.
+
+**Pourquoi c'est du métier et pas de la plomberie :** sous 16px, Mobile Safari
+**zoome le viewport** dès qu'un contrôle de formulaire prend le focus. Le
+symptôme se raconte « le dialogue s'ouvre, l'écran se rapproche, on ne voit plus
+rien » — et en PWA installée aucun geste ne ramène à l'échelle, donc le
+formulaire reste hors cadre jusqu'à la fermeture. Ce n'était pas une coquetterie
+de mise en page : le foyer ne pouvait pas saisir.
+
+- **`tailwind-merge` fait gagner le dernier de la même famille.** Un
+  `className="h-8 text-sm"` posé pour tasser un champ **efface** le `text-base`
+  du composant. Quinze champs étaient dans ce cas, dont le sélecteur de zones —
+  posé sur 24 écrans, et qui **se focus tout seul** dans son propre effet à
+  l'ouverture de son panneau.
+- **Un champ brut (`<input>`, `<select>`) déclare sa taille lui-même**, ou passe
+  par le composant du design-system. Tailwind pose `font-size: 100%` sur les
+  contrôles de formulaire : sans taille explicite ils héritent du conteneur,
+  donc 14px dès qu'ils sont posés dans un bloc `text-sm`. Le test refuse les
+  deux — la taille trop petite *et* l'absence de taille.
+- **Le garde-fou de #272 ne pouvait pas couvrir celui-ci**, et c'est la leçon
+  qui compte : il neutralise le focus **à l'ouverture d'un SheetDialog**
+  (`onOpenAutoFocus` + blur avant le paint) pour empêcher le clavier de sortir.
+  Le zoom, lui, ne dépend pas de *qui* donne le focus — un composant enfant qui
+  se focus dans son propre effet, ou simplement le doigt de l'utilisateur — mais
+  uniquement de la taille du texte. **Deux effets du même geste ne se corrigent
+  pas au même endroit.**
+- **Le contrôle est statique, et il ne peut pas être autre chose.** Le zoom
+  n'existe que dans WebKit : ni jsdom, ni Chromium, ni Firefox ne le
+  reproduisent, donc aucun test de rendu ne l'attesterait — c'est l'inverse de
+  `DecimalInput`, où il fallait justement un vrai moteur. Mais la propriété,
+  elle, est déterministe : c'est une taille de police, elle se lit dans la
+  source. Et **en revue, `text-sm` sur un champ ressemble exactement à
+  `md:text-sm`.**
+
 ### Dates de calendrier — jamais `toISOString()`
 
 Même règle, pour la même raison. Une date `YYYY-MM-DD` passe par
