@@ -31,6 +31,7 @@ Chaque fiche suit le même squelette :
 - [DISTRIBUTION_ET_REGISTRE.md](DISTRIBUTION_ET_REGISTRE.md) — Distribuer une image : ce qu'un registre stocke vraiment (index, manifestes, couches), multi-architecture par émulation, tag mutable contre empreinte immuable, et les trois étages de permissions de GitHub Packages (parcours 28)
 - [CADENCE_SAISONNIERE.md](CADENCE_SAISONNIERE.md) — Une échéance qui n'est pas un intervalle : fenêtre calendaire à cheval sur deux années, saison comme identifiant, échéance dérivée et jamais stockée (parcours 30)
 - [ANCRAGE_PHYSIQUE.md](ANCRAGE_PHYSIQUE.md) — Ancrer un objet numérique dans un lieu physique : preuve de présence par jeton imprimé plutôt que déclaration, pourquoi l'appareil photo natif et pas un scanner intégré (`Permissions-Policy`), pourquoi le SPA résout le jeton et pas Django (JWT en `localStorage`) (parcours 31)
+- [ENTRETIEN_DIRIGE.md](ENTRETIEN_DIRIGE.md) — L'entretien dirigé : faire poser les questions par le modèle sans lui confier l'état (sortie à deux états, plafond de tours tenu par le code et non par le prompt, plan relu avant écriture plutôt qu'annulé après) (parcours 32)
 
 ## Quand créer une fiche ?
 

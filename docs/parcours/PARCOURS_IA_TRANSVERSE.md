@@ -7,6 +7,7 @@ Il factorise les principes, le vocabulaire et les décisions à trancher avant d
 Voir aussi :
 
 - [PARCOURS_07_AGENT_CONVERSATIONNEL.md](../../docs/parcours/PARCOURS_07_AGENT_CONVERSATIONNEL.md) — premier porteur d'implémentation IA (agent conversationnel : lecture via function calling, écriture bornée `create_entity` depuis le lot 8 + extensions futures pour capture conversationnelle et compréhension de documents)
+- [PARCOURS_32_RACONTER_UN_CHANTIER.md](../../docs/parcours/PARCOURS_32_RACONTER_UN_CHANTIER.md) — première **production d'objets métier** par le modèle (un projet, des tâches, des notes) plutôt que de texte à lire ; fiche associée : [ENTRETIEN_DIRIGE.md](../fiches/ENTRETIEN_DIRIGE.md)
 
 ## Objet
 
@@ -117,6 +118,18 @@ Pistes à instruire dans le design doc d'implémentation :
 Décision : ne pas trancher ici, mais ne pas exclure ce mode par le design actuel.
 
 > **Divergence actée (lot 8 agent, 2026-07)** : pour les écritures de l'agent conversationnel (`create_entity` — tâche, note), le choix retenu est **« créer + Undo »** plutôt que `needs_review` : l'item est créé immédiatement via le service métier, remonté dans `metadata.created_entities`, et annulable d'un clic (toast). Rationale dans [PARCOURS_07_LOT8_ACTIONS_ECRITURE.md](../../docs/parcours/PARCOURS_07_LOT8_ACTIONS_ECRITURE.md) §8 : à l'échelle solo-user, une validation préalable ajoute de la friction sans bénéfice, et l'annulation immédiate offre le même contrôle final. `needs_review` reste le mécanisme cible pour les canaux **asynchrones** (capture WhatsApp/email, compréhension de documents à l'upload), où l'utilisateur n'est pas dans la boucle au moment de la création. Le contrat de provenance `metadata.ai.*` n'est pas encore porté par ces créations — à instruire quand un canal asynchrone l'exigera.
+
+> **Deuxième divergence actée (parcours 32, 2026-08)** : pour une **création en
+> lot** — un entretien produit un projet, six tâches, deux notes et une enveloppe
+> d'un seul geste — ni `créer + Undo` ni `needs_review` ne conviennent. Douze
+> bulles « Annuler » ne sont pas un contrôle, et un état `needs_review` sur douze
+> objets fabriquerait une file à vider. Le choix retenu est la **relecture avant
+> écriture** : le plan est proposé, édité et décoché à l'écran, et **rien n'est
+> écrit** avant validation — deux endpoints distincts, celui qui parle au modèle
+> ne connaissant aucune écriture. La règle de bascule est la **cardinalité**, pas
+> le principe : `créer + Undo` reste juste pour un objet. Conséquence assumée : la
+> provenance `metadata.ai.*` n'est pas portée non plus, la relecture transférant
+> la paternité du contenu à celui qui l'a validé.
 
 ## Règles à préserver dès maintenant
 
