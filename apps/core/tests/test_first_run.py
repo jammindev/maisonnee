@@ -247,24 +247,101 @@ class TestTheDemoHouseholdIsWorthVisiting:
     def test_every_module_of_the_sidebar_has_something_to_show(self):
         """Un module vide est un module qu'on juge sans l'avoir vu.
 
-        La liste est celle des modules que la seed alimente ; un module ajouté
-        au produit et oublié ici arrive vide chez le visiteur.
+        ⚠️ **La liste des modules se dérive de ``PINNABLE_MODULES``, jamais de ce
+        que la seed alimente.** La version précédente énumérait douze modèles à la
+        main en se décrivant elle-même — « la liste est celle des modules que la
+        seed alimente » — et un contrôle qui décrit son sujet ne peut pas détecter
+        ce que son sujet a oublié. Cinq modules de la sidebar étaient vides en
+        production, sur la vitrine publique : Électricité (aucun compteur, donc une
+        page de consommation blanche sous un tableau de 14 circuits), Verger et
+        Chasse au trésor (livrés le 15 août 2026, seed jamais mise à jour),
+        Documents et Photos. Le test était vert — ces modèles n'étaient pas dans
+        son tuple. C'est la signature exacte du travail à sortir de l'espace
+        latent : *en revue, la liste incomplète ressemble exactement à la liste
+        complète.*
+
+        Ajouter un module à la sidebar = ajouter son témoin ici, ou le premier
+        `assert` de la boucle lève en nommant la clé. Même patron que
+        ``entityIcons``, ``DERIVED_FROM`` et le registre des capacités — le
+        registre est la source, et la couverture se vérifie depuis le registre.
         """
+        from banking.models import BankAccount, BankTransaction
+        from budget.models import Budget
         from chickens.models import Chicken, EggLog
         from directory.models import Contact, Structure
+        from documents.models import Document
+        from electricity.models import ConsumptionRecord, MeterReading
         from equipment.models import Equipment
+        from games.models import Hunt, HuntStep
+        from households.modules import PINNABLE_MODULES
         from insurance.models import InsuranceContract
+        from interactions.models import Interaction
+        from orchard.models import Harvest, Tree
+        from projects.models import Project
         from shopping.models import ShoppingListItem
         from stock.models import StockItem, StockLevelReading
+        from tasks.models import Task
         from trackers.models import Tracker, TrackerEntry
         from water.models import WaterReading
+        from zones.models import Zone
 
-        for model in (
-            Equipment, StockItem, StockLevelReading, ShoppingListItem,
-            Chicken, EggLog, WaterReading, InsuranceContract,
-            Tracker, TrackerEntry, Structure, Contact,
-        ):
-            assert model.objects.exists(), f"{model.__name__} : aucun objet semé"
+        household = Household.objects.get(name="Famille Mercier")
+
+        # Ce qui prouve qu'un module a de quoi s'afficher. Plusieurs modèles quand
+        # l'écran ne vaut rien avec un seul : un compteur sans relevé, un sujet de
+        # verger sans récolte ou un article de stock sans historique donnent une
+        # page aussi vide qu'un module jamais semé.
+        witnesses = {
+            'zones': (Zone,),
+            'equipment': (Equipment,),
+            'electricity': (MeterReading, ConsumptionRecord),
+            'water': (WaterReading,),
+            'stock': (StockItem, StockLevelReading),
+            'shopping': (ShoppingListItem,),
+            'chickens': (Chicken, EggLog),
+            'orchard': (Tree, Harvest),
+            'games': (Hunt, HuntStep),
+            'insurance': (InsuranceContract,),
+            'tasks': (Task,),
+            'projects': (Project,),
+            'interactions': (Interaction,),
+            'trackers': (Tracker, TrackerEntry),
+            'money_budgets': (Budget,),
+            'money_expenses': (Interaction,),
+            'money_accounts': (BankAccount, BankTransaction),
+            'documents': (Document,),
+            'photos': (Document,),
+            'directory': (Structure, Contact),
+        }
+
+        # La météo n'a **aucun modèle** : c'est une intégration en lecture seule
+        # dont tout dépend des coordonnées du foyer. Son témoin est donc un champ,
+        # pas une table — et sans lui le module est muet, les tâches
+        # météo-conscientes ne se décalent jamais et l'overlay de la courbe de
+        # consommation n'a rien à superposer.
+        assert household.latitude is not None and household.longitude is not None, (
+            "weather : le foyer de démonstration n'a pas de coordonnées"
+        )
+
+        for module in sorted(PINNABLE_MODULES):
+            if module == 'weather':
+                continue
+            assert module in witnesses, (
+                f"{module} : module de la sidebar sans témoin déclaré ici. Ajoute le "
+                "modèle qui prouve que la démonstration a de quoi montrer, et sème-le "
+                "— un module vide se juge sans avoir été vu."
+            )
+            for model in witnesses[module]:
+                assert model.objects.filter(household=household).exists(), (
+                    f"{module} : {model.__name__} n'a aucun objet semé, "
+                    "le visiteur ouvre une page vide"
+                )
+
+        # L'inverse aussi : un témoin qui survit à la disparition de son module est
+        # un import mort que personne ne remarquera.
+        assert set(witnesses) <= PINNABLE_MODULES, (
+            f"témoins orphelins : {sorted(set(witnesses) - PINNABLE_MODULES)}"
+        )
 
     def test_a_stock_item_carries_a_curve_and_not_a_single_point(self):
         """Une quantité posée à plat ne se trace pas.

@@ -722,11 +722,11 @@ installe n'est jamais celui qui décide si ça sert.
 
 | | |
 |---|---|
-| Données | Le foyer fictif « Famille Mercier », trois ans d'historique, semé par `seed_demo_data` |
+| Données | Le foyer fictif « Famille Mercier », semé par `seed_demo_data` : **trois ans** de relevés bancaires (655 lignes) et de consommation électrique, trois saisons de récoltes au verger, et de quoi remplir **les 22 entrées de la sidebar** — la couverture est tenue par un test, pas par une relecture (voir plus bas) |
 | Inscription | **Fermée.** Un compte neuf tombe dans un foyer vide — l'inverse de ce qu'on montre |
 | Connexion | `DEMO_MODE=1` : bannière, identifiants publiés **pré-remplis**, deux lignes d'installation |
 | Assistant | Allumé, sur la clé de l'hébergeur, avec des débits serrés automatiquement |
-| Remise à zéro | Quotidienne, par cron (`deploy/demo/reset.sh`) |
+| Remise à zéro | Quotidienne à 4 h, par **timer systemd utilisateur** (`deploy/demo/reset.sh`) — ce VPS n'a pas de cron, voir § « La remise à zéro quotidienne » |
 | Sauvegarde | **Aucune, volontairement.** Il n'y a rien à perdre, et la restaurer serait la remettre à zéro |
 
 ### Installation
