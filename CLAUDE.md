@@ -59,10 +59,23 @@ mensuel en anglais dans les quatre langues), `ui/src/lib/invalidate.test.ts` (un
 `onSuccess` qui oublie une racine), `agent/tests/test_registry.py` (un
 `url_template` qui mène à un écran blanc), `nginx/test-resilience.sh` (un
 `proxy_pass` littéral), `scripts/test-backup-restore.sh` (une restauration jamais
-rejouée). Le point commun des six est déjà écrit plus bas, mot pour mot : **en
-revue, le diff fautif ressemble exactement au diff juste.** Quand cette phrase est
-vraie d'un défaut, c'est la signature d'un travail à sortir de l'espace latent —
-pas d'une relecture à faire plus sérieusement.
+rejouée), `apps/core/tests/test_first_run.py` (cinq modules de la sidebar vides sur
+la vitrine publique). Le point commun des sept est déjà écrit plus bas, mot pour
+mot : **en revue, le diff fautif ressemble exactement au diff juste.** Quand cette
+phrase est vraie d'un défaut, c'est la signature d'un travail à sortir de l'espace
+latent — pas d'une relecture à faire plus sérieusement.
+
+**Et un garde-fou se dérive du registre, jamais de ce qu'il a sous la main.** Le
+septième existait déjà et il était **vert** pendant que la démonstration montrait
+cinq pages blanches. Sa liste de modèles était écrite à la main et se décrivait
+elle-même — « la liste est celle des modules que la seed alimente » : un contrôle
+qui énumère ce que son sujet *fait* ne peut structurellement pas voir ce que son
+sujet a *oublié*, et son silence se lit comme une preuve. La forme juste est
+toujours la même dans ce dépôt : **boucler sur le registre** (`PINNABLE_MODULES`,
+`agent.searchables`, `banking.compliance.REGISTRY`, `capabilities`) et exiger une
+entrée pour chacun, de sorte qu'ajouter au produit sans ajouter au contrôle lève
+au lieu de passer. Un test dont la couverture est un littéral vieillit à la
+vitesse à laquelle on oublie de le modifier.
 
 ## Chercher avant de construire
 

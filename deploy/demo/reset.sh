@@ -4,7 +4,10 @@
 #
 # La démo est **modifiable** : un visiteur qui ne peut rien changer ne sait pas
 # ce que ça fait de s'en servir. Le prix, c'est qu'elle se dégrade — des lignes
-# saisies au hasard, des choses supprimées. D'où ce script, appelé par cron.
+# saisies au hasard, des choses supprimées. D'où ce script, appelé par le timer
+# systemd utilisateur `maisonnee-demo-reset.timer` (unités versionnées dans
+# `systemd/`). **Ce VPS n'a pas de cron** : `crontab` n'y est pas installé, et
+# chercher à l'utiliser fait perdre une heure — voir DEPLOYMENT.md § 11.
 #
 # Deux choses à savoir avant de toucher à la cadence :
 #
@@ -18,8 +21,9 @@
 # les données à zéro, et il **rattrape la dernière release publiée**. C'est le seul
 # mécanisme qui met la vitrine à jour — aucun workflow ne s'en charge.
 #
-# La cadence vit dans la crontab, pas ici — une ligne à changer si un jour
-# d'annonce la démo se dégrade avant midi. Voir DEPLOYMENT.md § 11.
+# La cadence vit dans `systemd/maisonnee-demo-reset.timer`, pas ici — un
+# `OnCalendar=` à changer si un jour d'annonce la démo se dégrade avant midi, suivi
+# d'un `systemctl --user daemon-reload`. Voir DEPLOYMENT.md § 11.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -70,7 +74,7 @@ docker compose exec -T \
   web python manage.py seed_demo_data --flush --password "${DEMO_PASSWORD}"
 
 # Même garde que dans le compose : la commande lève si la clé est absente, et le
-# `set -e` ferait échouer le cron chaque nuit sur une capacité facultative — alors
+# `set -e` ferait échouer l'unité chaque nuit sur une capacité facultative — alors
 # que la remise à zéro, elle, a parfaitement réussi.
 if [ -n "${VOYAGE_API_KEY:-}" ]; then
   docker compose exec -T web python manage.py backfill_embeddings
