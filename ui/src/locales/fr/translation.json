@@ -4596,6 +4596,12 @@
       "unavailable": "L’écriture des énigmes n’est pas configurée sur cette instance.",
       "without": "Les chasses au trésor fonctionnent exactement pareil — vous écrivez les énigmes vous-même.",
       "enabled": "L’assistant peut proposer une énigme pour chaque pièce d’une chasse."
+    },
+    "project_assistant": {
+      "name": "Création de projet assistée",
+      "unavailable": "La création de projet assistée n’est pas configurée sur cette instance.",
+      "without": "Les projets se créent au formulaire, comme avant — rien ne manque.",
+      "enabled": "L’assistant pose quelques questions, puis propose le projet, ses tâches et ses notes."
     }
   },
   "orchard": {

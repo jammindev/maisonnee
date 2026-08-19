@@ -4596,6 +4596,12 @@
       "unavailable": "Riddle writing is not configured on this instance.",
       "without": "Treasure hunts work exactly the same — you write the riddles yourself.",
       "enabled": "The assistant can propose a riddle for each room of a hunt."
+    },
+    "project_assistant": {
+      "name": "Guided project creation",
+      "unavailable": "Guided project creation is not configured on this instance.",
+      "without": "Projects are still created with the form, exactly as before — nothing is missing.",
+      "enabled": "The assistant asks a few questions, then proposes the project with its tasks and notes."
     }
   },
   "orchard": {

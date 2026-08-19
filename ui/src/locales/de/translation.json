@@ -4596,6 +4596,12 @@
       "unavailable": "Das Schreiben von Rätseln ist auf dieser Instanz nicht eingerichtet.",
       "without": "Schatzsuchen funktionieren genau gleich — die Rätsel schreibt ihr selbst.",
       "enabled": "Der Assistent kann für jeden Raum einer Schatzsuche ein Rätsel vorschlagen."
+    },
+    "project_assistant": {
+      "name": "Geführte Projekterstellung",
+      "unavailable": "Die geführte Projekterstellung ist auf dieser Instanz nicht konfiguriert.",
+      "without": "Projekte werden wie bisher über das Formular angelegt — es fehlt nichts.",
+      "enabled": "Der Assistent stellt einige Fragen und schlägt dann das Projekt mit seinen Aufgaben und Notizen vor."
     }
   },
   "orchard": {

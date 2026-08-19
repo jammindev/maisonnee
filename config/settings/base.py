@@ -254,6 +254,10 @@ REST_FRAMEWORK = {
         # Écrire les énigmes d'une chasse est un appel au modèle : on compose
         # une fois, on ajuste deux ou trois fois, on joue.
         "hunt_riddles": "20/hour",
+        # Un tour d'entretien de création de projet vaut un appel au modèle, et
+        # un entretien complet en vaut jusqu'à sept (six questions + le plan) :
+        # le cap se lit en chantiers, pas en requêtes.
+        "project_assistant": "60/hour",
     },
 }
 

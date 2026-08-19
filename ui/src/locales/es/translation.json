@@ -4596,6 +4596,12 @@
       "unavailable": "La redacción de adivinanzas no está configurada en esta instancia.",
       "without": "Las búsquedas del tesoro funcionan igual: las adivinanzas las escribes tú.",
       "enabled": "El asistente puede proponer una adivinanza para cada habitación de una búsqueda."
+    },
+    "project_assistant": {
+      "name": "Creación de proyecto asistida",
+      "unavailable": "La creación de proyecto asistida no está configurada en esta instancia.",
+      "without": "Los proyectos se siguen creando con el formulario, igual que antes — no falta nada.",
+      "enabled": "El asistente hace algunas preguntas y luego propone el proyecto con sus tareas y notas."
     }
   },
   "orchard": {

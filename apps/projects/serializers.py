@@ -10,6 +10,7 @@ from .models import (
     ProjectZone,
     UserPinnedProject,
 )
+from .assistant import MAX_QUESTIONS
 from .services import project_actual_cost, project_tab_counts
 
 
@@ -193,3 +194,36 @@ class ProjectZoneSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "created_by"]
 
 
+
+class AssistantTurnSerializer(serializers.Serializer):
+    """Un tour déjà joué de l'entretien — question posée, réponse donnée.
+
+    Permissif sur le contenu, strict sur les **bornes** : le corps de la requête
+    est le seul état de l'entretien, donc c'est le seul endroit où en borner la
+    taille. Sans plafond, un client pourrait faire grossir le prompt sans limite
+    — le compteur de questions, lui, vit dans `assistant.next_step`.
+    """
+
+    question = serializers.CharField(max_length=500, allow_blank=True, default="")
+    field = serializers.CharField(max_length=60, allow_blank=True, default="")
+    answer = serializers.CharField(max_length=1000, allow_blank=True, default="")
+
+
+class AssistantStepSerializer(serializers.Serializer):
+    """Entrée de `POST /api/projects/assistant-step/`.
+
+    `history` est plafonné à `MAX_QUESTIONS` entrées : au-delà, l'entretien doit
+    conclure de toute façon, donc accepter davantage ne servirait qu'à gonfler le
+    prompt. `force_ready` est le « J'ai assez dit » de l'écran — il n'est pas une
+    optimisation, c'est la sortie de secours qui empêche l'entretien de retenir
+    quelqu'un qui a fini de parler.
+    """
+
+    goal = serializers.CharField(max_length=500, trim_whitespace=True)
+    history = serializers.ListField(
+        child=AssistantTurnSerializer(),
+        required=False,
+        default=list,
+        max_length=MAX_QUESTIONS,
+    )
+    force_ready = serializers.BooleanField(required=False, default=False)

@@ -1,3 +1,5 @@
+import logging
+
 from django.utils import timezone
 from rest_framework import status as drf_status, viewsets
 from rest_framework.decorators import action
@@ -5,9 +7,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from app_settings import capabilities
 from core.permissions import IsHouseholdMember
 from documents.mixins import DocumentLinkActionsMixin
 from interactions.services import create_expense_interaction, validate_expense_budget
+from .assistant import next_step
+from .throttles import ProjectAssistantThrottle
 from .models import (
     Project,
     ProjectGroup,
@@ -15,12 +20,15 @@ from .models import (
     UserPinnedProject,
 )
 from .serializers import (
+    AssistantStepSerializer,
     ProjectSerializer,
     ProjectGroupSerializer,
     ProjectPurchaseSerializer,
     ProjectZoneSerializer,
 )
 from .services import annotate_actual_cost
+
+logger = logging.getLogger(__name__)
 
 
 class _HouseholdScopedViewSet(viewsets.ModelViewSet):
@@ -91,6 +99,70 @@ class ProjectViewSet(DocumentLinkActionsMixin, _HouseholdScopedViewSet):
             raise ValidationError({"cover_interaction": "Cover interaction household must match selected household."})
 
         serializer.save(updated_by=self.request.user)
+
+    def get_throttles(self):
+        """Un tour d'entretien achète un appel au modèle : cap à part.
+
+        Le plancher global compte des requêtes, pas des euros — même règle que
+        `document_upload`, `ocr_reprocess` et `hunt_riddles`.
+        """
+        if self.action == "assistant_step":
+            return [ProjectAssistantThrottle()]
+        return super().get_throttles()
+
+    @action(detail=False, methods=["post"], url_path="assistant-step")
+    def assistant_step(self, request):
+        """Le tour suivant de l'entretien de création — et n'écrit **rien**.
+
+        Volontairement une action de **liste** : le projet n'existe pas encore,
+        et c'est tout le sujet. Une route de détail obligerait à enregistrer un
+        chantier vide avant de pouvoir en parler — exactement le formulaire qu'on
+        remplace. Ici « rien n'est écrit » n'est même plus une promesse à tenir :
+        l'endpoint ne sait pas où écrire. La création est un endpoint séparé
+        (lot 2), et cette séparation est ce qui rend la garantie structurelle
+        plutôt que dépendante d'un `if`.
+
+        ⚠️ `url_path` est explicite parce que DRF **ne dérive pas** le chemin du
+        nom de la méthode de la même façon que le nom de route : `url_name`
+        remplace les underscores par des tirets, `url_path` non. Sans cette ligne
+        le front appellerait `/assistant-step/` pendant que le serveur servirait
+        `/assistant_step/`, et tout test passant par `reverse()` resterait vert.
+        """
+        # Avant tout effet de bord — et surtout avant l'appel qui coûte : un 200
+        # inventé ou un 500 diraient tous deux « le produit est cassé », alors
+        # qu'il manque une clé et que quelqu'un peut la poser.
+        capabilities.require("project_assistant")
+
+        household = getattr(request, "household", None)
+        if household is None:
+            raise ValidationError({"household_id": "A valid household context is required."})
+
+        serializer = AssistantStepSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            step = next_step(
+                household,
+                goal=serializer.validated_data["goal"],
+                history=serializer.validated_data["history"],
+                force_ready=serializer.validated_data["force_ready"],
+                user=request.user,
+            )
+        except ValueError as exc:
+            # Forme inattendue : rien n'est rendu, et le front garde la question
+            # précédente en proposant de reformuler. Un demi-plan serait pire —
+            # l'écran de relecture afficherait des lignes vides sans dire
+            # lesquelles viennent du modèle.
+            logger.warning("projects.assistant: step refused (%s)", exc)
+            return Response({"detail": str(exc)}, status=drf_status.HTTP_502_BAD_GATEWAY)
+        except Exception as exc:  # noqa: BLE001 — panne fournisseur, pas un bug d'ici
+            logger.warning("projects.assistant: step failed (%s)", exc)
+            return Response(
+                {"detail": "The assistant could not answer right now."},
+                status=drf_status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(_serialize_step(step))
 
     @action(detail=True, methods=["post"], url_path="register-purchase")
     def register_purchase(self, request, pk=None):
@@ -171,3 +243,27 @@ class ProjectZoneViewSet(viewsets.ModelViewSet):
         if project.household_id != zone.household_id:
             raise ValidationError({"zone": "Zone household must match project household."})
         serializer.save(created_by=self.request.user)
+
+
+def _serialize_step(step) -> dict:
+    """La forme que le front lit — une question, ou le plan, jamais les deux."""
+    payload = {
+        "state": step.state,
+        "asked": step.asked,
+        "remaining": step.remaining,
+    }
+    if step.question is not None:
+        payload["question"] = {
+            "text": step.question.text,
+            "field": step.question.field,
+            "input": step.question.input,
+            "hint": step.question.hint,
+            "choices": list(step.question.choices),
+        }
+    if step.plan is not None:
+        payload["plan"] = {
+            "project": step.plan.project,
+            "tasks": list(step.plan.tasks),
+            "notes": list(step.plan.notes),
+        }
+    return payload
