@@ -4,6 +4,11 @@
 > Ce qui change quand le logiciel quitte la machine de son auteur : le modèle de
 > menace, le contrat de licence, et la différence — beaucoup plus large qu'elle
 > n'en a l'air — entre *déployable* et *installable*.
+>
+> **Mise à jour.** Les sections 1 à 3 ont été écrites au cadrage, avant le code ;
+> elles disent maintenant ce qui **existe**, lot par lot. La section 4 est
+> nouvelle : elle rassemble ce que l'implémentation a appris et que le cadrage
+> n'avait pas pu voir — c'est la partie qu'on ne peut écrire qu'après.
 
 ## 1. Le problème
 
@@ -65,10 +70,10 @@ Il y a trois façons de traiter ça, et une seule est acceptable :
 
 - **planter** — l'app ne démarre pas sans clé : disqualifiant ;
 - **faire semblant** — l'onglet Assistant s'ouvre, la question part, la réponse
-  est « je ne sais pas ». C'est l'état actuel : `agent.service.ask` dégrade
-  proprement, mais l'interface promet quand même quelque chose qu'elle ne peut pas
-  tenir. L'utilisateur en conclut que le produit est mauvais, pas qu'il lui manque
-  une clé ;
+  est « je ne sais pas ». C'était l'état avant le lot 3 : `agent.service.ask`
+  dégradait proprement, mais l'interface promettait quand même quelque chose
+  qu'elle ne pouvait pas tenir. L'utilisateur en conclut que le produit est
+  mauvais, pas qu'il lui manque une clé ;
 - **déclarer** — le serveur dit ce dont il est capable, l'interface s'aligne, et
   l'endroit où la capacité manque explique comment l'obtenir.
 
@@ -76,11 +81,19 @@ C'est la même règle que la conformité de l'argent, transposée à la configur
 **un zéro a deux sens** — « rien à dire » et « rien d'évaluable » — et les
 confondre produit un silence qu'on prend pour une réponse.
 
+C'est la troisième qui a été retenue (lot 3) : le registre
+`app_settings.capabilities`, alimenté depuis l'`apps.py::ready()` de l'app qui
+possède le réglage — `app_settings` ne connaît pas la liste —, exposé par
+`GET /api/capabilities/`, et adossé à `docs/self-hosting/ai-providers.md` dont
+**chaque ancre est vérifiée par un test**. Sans ce contrôle, le lien meurt le
+jour où il est écrit et « nécessite une clé Anthropic » redevient le mur qu'on
+voulait supprimer.
+
 Un cas mérite d'être isolé parce qu'il n'est pas cosmétique : **sans SMTP,
 l'invitation d'un second membre part dans le vide.** Un « système d'exploitation du
 foyer » qui ne peut pas dépasser une personne n'est pas dégradé, il est inutile.
 L'invitation doit donc produire un **lien copiable** ; l'e-mail n'en est que le
-véhicule de confort.
+véhicule de confort. *(Livré avant le lot 3, et pas par lui — voir § 4.1.)*
 
 ### 3.3 Le modèle de menace change de nature
 
@@ -103,6 +116,13 @@ Ajouter un endpoint, c'est alors le faire passer sous ce test sans y penser —
 même logique que `banking.compliance.REGISTRY` (« ajouter un mécanisme à l'argent
 = ajouter son détecteur ») ou que le test de parité des catalogues i18n.
 
+Livré au lot 1 (`apps/core/tests/test_tenant_isolation.py`), étendu à l'écriture
+au lot 1bis (`test_write_isolation.py`, et le plancher
+`HouseholdScopedPrimaryKeyRelatedField` qui borne un champ relationnel au foyer).
+Ce qui reste ouvert est **nommé** plutôt que supposé sûr : les
+`@action(detail=True)` et les `APIView` sans queryset, que le test générique ne
+peut pas voir, sont recensées dans `docs/MODULES/security.md`.
+
 ### 3.4 La sauvegarde est une fonctionnalité, pas une consigne
 
 Les gens vont mettre leurs relevés bancaires, leurs factures et leurs contrats
@@ -114,6 +134,10 @@ Donc : une commande de sauvegarde qui marche sans contexte, une procédure de
 sauvegarde), et la règle déjà tenue en interne — **une migration destructive se
 livre en deux fois** — devient une promesse publique de compatibilité, puisque
 personne ne contrôle plus quand ses utilisateurs mettent à jour.
+
+Livré au lot 5 : `backup_db.sh --state-dir`, `restore_db.sh`, et
+`scripts/test-backup-restore.sh` — rejoué à chaque PR, **bloquant pour une
+release**, informatif pour le deploy.
 
 ### 3.5 La promesse d'installation vit hors du dépôt
 
@@ -129,7 +153,161 @@ pousse. Le détail (index multi-architecture, tag contre empreinte, et les trois
 étages de permissions de GitHub Packages, dont deux fermés par défaut) est dans
 sa propre fiche : [DISTRIBUTION_ET_REGISTRE.md](DISTRIBUTION_ET_REGISTRE.md).
 
-## 4. Pourquoi cette implémentation — décisions et trade-offs
+## 4. Ce que l'implémentation a appris
+
+Les trois sections précédentes ont été pensées avant d'écrire une ligne, et elles
+ont tenu. Ce qui suit ne pouvait pas s'écrire à l'avance : chaque point vient d'un
+moment où le code a démenti le plan, ou l'a dépassé.
+
+Deux leçons de cette famille ont leur propre fiche parce qu'elles dépassaient le
+paragraphe — la construction multi-architecture et la visibilité d'un paquet
+publié : [DISTRIBUTION_ET_REGISTRE.md](DISTRIBUTION_ET_REGISTRE.md).
+
+### 4.1 Un cadrage a une date de péremption
+
+Le lot 3 déclarait **bloquant** le fait que, sans SMTP, on ne puisse pas inviter
+un second membre. Au moment de le corriger, c'était déjà fait : un correctif sans
+rapport, un mois plus tôt, avait introduit le lien `/join/<token>` et la création
+de compte depuis ce lien. Le point le plus grave du lot s'était résolu ailleurs,
+sans que le plan le sache.
+
+La conséquence n'est pas « le cadrage était mauvais » — il avait raison sur le
+fond, et c'est bien pour cette raison que quelqu'un l'avait corrigé entre-temps.
+C'est qu'**il faut vérifier l'état réel avant de coder ce qu'on a spécifié**, sous
+peine de réécrire ce qui existe. Ce que le lot a fait à la place : le
+**documenter** comme la voie normale. Un chemin qui existe mais que personne ne
+connaît ne rattrape rien.
+
+### 4.2 Gater ce qui marche annonce cassé ce qui ne l'est pas
+
+Le plan listait l'écran du récap parmi ceux à masquer sans clé d'IA. Or sans clé,
+le récap **sort quand même** : les chiffres sont justes, les phrases sont
+seulement plus sèches. Y poser un bandeau « nécessite une clé » aurait fabriqué
+exactement le malentendu que le lot existait pour supprimer.
+
+D'où une règle plus fine que « masquer ce qui dépend d'un tiers » : **on ne
+déclare indisponible que ce qui l'est**. Une capacité de confort se dit dans la
+liste des réglages — qui répond à la question de celui qui installe, *qu'est-ce
+qui dort ici ?* — et pas sur l'écran, qui répondrait à une question que personne
+ne se pose.
+
+### 4.3 Un état de configuration ne peut pas avoir deux définitions
+
+En câblant le registre, deux définitions concurrentes de « configuré » sont
+apparues, chacune écrite de bonne foi à un endroit différent :
+
+- Telegram avait **son propre 503**, écrit à la main dans la vue ;
+- le front du push déduisait « configuré » d'une **clé publique vide** — le
+  serveur répondait 200 en portant une réponse qu'il connaissait déjà, et l'échec
+  réel arrivait après le clic, sous la forme d'un `InvalidAccessError` que
+  personne ne peut lire.
+
+C'est le corollaire direct de la règle déjà écrite pour l'argent — *un compteur ne
+peut pas avoir deux définitions* — appliquée à la configuration. Deux textes qui
+disent la même chose finissent par diverger, et c'est l'utilisateur qui arbitre.
+
+### 4.4 Ce qu'on ne déclare pas, la plateforme l'a déclaré pour nous
+
+`EMAIL_BACKEND` n'était posé nulle part dans `base.py`. Le défaut de Django est
+donc resté : SMTP sur `localhost:25`. Tout module de réglages qui ne le
+surchargeait pas envoyait ses e-mails vers un serveur inexistant, et l'échec
+tombait **au moment de l'envoi**, loin de l'écran qui l'avait promis.
+
+Un défaut non déclaré n'est pas une absence de décision : c'est une décision prise
+par quelqu'un d'autre, souvent raisonnable pour son contexte et rarement pour le
+nôtre.
+
+### 4.5 Une sauvegarde est une paire, et l'appariement doit être mécanique
+
+Le plan disait « inclure `media/` ». L'implémentation a montré que la bonne unité
+n'est pas `media/` mais le **répertoire d'état**, qui porte les fichiers *et* la
+clé secrète. Les deux se perdent ensemble ou pas du tout : une base restaurée
+seule donne une instance dont chaque document est référencé et absent, et dont la
+clé neuve déconnecte tout le monde — le tout avec un tableau de bord parfaitement
+normal.
+
+Et il ne suffit pas de le documenter. Les deux archives partagent un
+**horodatage**, ce qui permet à `restore_db.sh` de retrouver la seconde tout seul
+et de **refuser** tant qu'on n'a pas dit `--db-only`. Une consigne se contourne
+par distraction ; un appariement mécanique, non.
+
+### 4.6 Un outil peut réussir en ayant échoué
+
+`psql` continue après une erreur et **sort 0**. Sans `ON_ERROR_STOP=1`, une
+restauration se déclare réussie en ayant perdu une table — le seul résultat pire
+qu'un échec, parce qu'il ne déclenche aucune enquête.
+
+Même famille : `restore_db.sh` refuse de **commencer** quand l'extension `vector`
+manque sur la cible, plutôt que d'échouer à mi-parcours en laissant une base à
+moitié peuplée. Quand l'échec partiel est pire que l'échec total, le bon moment
+pour vérifier est avant d'avoir rien détruit.
+
+### 4.7 Un test qui garde un format ne doit pas dépendre du métier
+
+La première version du test de restauration insérait sa ligne témoin dans la table
+des foyers. Elle a cassé tout de suite — cette table porte un `db_table`
+personnalisé — et elle aurait recassé au premier champ obligatoire ajouté au
+modèle : un rouge qui n'apprend **rien** sur la restauration.
+
+La ligne témoin vit donc dans une table à elle. Le schéma réel reste
+intégralement sauvegardé et restauré ; ce sont le compte de tables et la présence
+de l'extension qui l'attestent. **Un test doit dépendre de ce qu'il garde, et de
+rien d'autre** — sinon il devient une taxe qu'on finit par désactiver.
+
+### 4.8 Une porte de secours non exercée n'existe pas
+
+Le workflow de release portait depuis le lot 2 une entrée `workflow_dispatch`
+pour « republier une image sans re-tagger ». La première fois qu'on en a eu
+besoin, elle ne marchait pas : elle nommait l'image d'après la branche de
+déclenchement et non d'après le tag demandé, si bien que republier `v0.1.0`
+aurait poussé une image appelée `main`.
+
+Le chemin de secours n'avait jamais été emprunté, donc il n'avait jamais été
+faux — jusqu'au jour où il fallait s'en servir. Écrire une porte de sortie et ne
+pas l'ouvrir une fois, c'est écrire un commentaire, pas un mécanisme.
+
+### 4.9 Les réglages de test décrivent une instance, et il faut choisir laquelle
+
+Poser le garde de capacité sur les endpoints de l'agent a fait tomber vingt-six
+tests d'un coup. Aucun n'était faux : les réglages de test décrivaient une
+instance **sans clé**, et ces tests mesuraient donc le refus au lieu du
+comportement qu'ils vérifiaient.
+
+Le choix — décrire une instance **configurée**, et tester l'absence de clé là où
+c'est précisément le sujet — est un choix qu'il faut faire explicitement. Une
+suite de tests est un environnement d'exécution ; laisser ses défauts se décider
+par accumulation, c'est finir par mesurer autre chose que ce qu'on croit.
+
+### 4.10 Un artefact fantôme coûte ses explications
+
+Un tag `v1.0.0` traînait depuis un an, posé à la main sur un commit de
+configuration TypeScript sans rapport. Rien ne le lisait — le changelog est
+adossé au `commit_sha`, `package.json` était resté à `0.0.0`. Publier `v0.1.0`
+derrière lui n'aurait rien cassé, mais aurait fait croire à un lecteur qu'il
+avait raté une étape. Il a été supprimé.
+
+**Un artefact que personne ne lit et qui désigne autre chose que ce que son nom
+annonce ne vaut pas les explications qu'il coûte.**
+
+### La forme qui revient
+
+La moitié des points ci-dessus sont le même défaut : **quelque chose réussit alors
+que rien ne marche.** Le dump se charge à moitié en sortant 0, l'abonnement push
+s'enregistre sans pouvoir notifier, l'e-mail part vers `localhost:25`, la
+republication nomme son image `main` — et, au § 3.2, l'assistant répond « je ne
+sais pas » sans avoir de clé. Les deux cas de la fiche voisine sont de la même
+famille : une image publiée sans avoir jamais démarré, un paquet publié qui répond
+`denied`.
+
+C'est la signature du passage de *déployable* à *installable*. Sur la machine de
+son auteur, chacun de ces silences est rattrapé par quelqu'un qui sait ce qu'il
+attendait. Chez un inconnu, personne ne sait — et le logiciel est jugé sur ce
+qu'il a l'air de faire, pas sur ce qu'il fait.
+
+D'où l'orientation de ces lots, et la seule phrase à retenir si on n'en garde
+qu'une : **transformer chaque silence en phrase, et chaque phrase en test.**
+
+## 5. Pourquoi cette implémentation — décisions et trade-offs
 
 **AGPL-3.0 plutôt qu'une licence permissive.** Le copyleft *réseau* — l'obligation
 de publier ses modifications quand on **héberge** le logiciel pour d'autres, pas
@@ -172,7 +350,7 @@ ne reviennent pas, et on ne reposte pas. D'où la séquence imposée — install
 qui marche, puis façade, puis **cinq à dix foyers en privé** dont on corrige les
 plantages, et *seulement ensuite* les canaux publics.
 
-## 5. Ce qu'on a écarté et pourquoi
+## 6. Ce qu'on a écarté et pourquoi
 
 - **Ne publier que le module Argent.** C'est la seule partie avec une promesse que
   personne d'autre ne tient (*chaque euro est rangé ou signalé avec un motif*), et
@@ -196,7 +374,7 @@ plantages, et *seulement ensuite* les canaux publics.
   par la fidélité du raisonnement conservé. Une traduction figée qui dérive vaut
   moins qu'une doc vraie en français, et l'interface est déjà en quatre langues.
 
-## 6. Pour aller plus loin
+## 7. Pour aller plus loin
 
 - [Choose a License — AGPL-3.0](https://choosealicense.com/licenses/agpl-3.0/) — le
   texte et ses obligations en clair.
@@ -216,6 +394,9 @@ plantages, et *seulement ensuite* les canaux publics.
 
 ---
 
-Fiches connexes : [CARTOGRAPHIE_DEPENSES.md](CARTOGRAPHIE_DEPENSES.md) (ce que le
+Fiches connexes : [DISTRIBUTION_ET_REGISTRE.md](DISTRIBUTION_ET_REGISTRE.md) et
+[DEPENDANCES_ET_PAQUETS.md](DEPENDANCES_ET_PAQUETS.md) (nées du même parcours :
+ce qui se passe une fois l'image publiée, et ce qu'on exécute sans l'avoir
+écrit), [CARTOGRAPHIE_DEPENSES.md](CARTOGRAPHIE_DEPENSES.md) (ce que le
 durcissement doit protéger côté argent), [RAG.md](RAG.md) et
 [EMBEDDINGS.md](EMBEDDINGS.md) (les capacités qui dépendent d'une clé d'API tierce).
