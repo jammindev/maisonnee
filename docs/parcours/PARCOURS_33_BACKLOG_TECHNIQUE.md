@@ -35,28 +35,40 @@ rôle : elle n'attrape pas le défaut, elle attrape la **sur-correction**.
 
 ---
 
-## Lot 2 — Le registre de visibilité ([#662](https://github.com/jammindev/maisonnee/issues/662))
+## Lot 2 — Le registre de visibilité ([#662](https://github.com/jammindev/maisonnee/issues/662)) — **livré**
 
 Zéro changement de comportement observable. C'est le socle que le lot 4 exige,
 livré à part pour que sa PR reste relisible.
 
-- `apps/core/visibility.py` — `PrivacySpec(model, narrow, mode)`, `REGISTRY`,
-  `register()`, `narrow_for(queryset, viewer)`.
-  - `narrow(queryset, viewer) -> queryset` — écrit par l'app propriétaire.
-  - `mode` : `hide` (l'item disparaît) ou `redact` (il reste, son contenu est
-    remplacé). Un seul producteur de `redact`, au lot 4 — l'introduire ici coûte un
-    champ inutilisé pendant une PR, l'introduire plus tard obligerait à rouvrir les
-    quatre `apps.py`.
-- `apps/{tasks,documents,briefings,interactions}/apps.py` — enregistrement depuis
-  `ready()`.
-- `apps/agent/searchables.py` — `SearchableSpec.visibility` délègue au registre
-  quand elle n'est pas fournie : une déclaration ferme les deux portes.
-- `core/tests/test_privacy_isolation.py` — les parties 3 et 4 lisent le **registre**
-  et non plus le champ. Motif : la cascade dérivée du lot 4 fera hériter `Tracker`
-  sans qu'il porte de drapeau, donc un catalogue adossé au `grep` ne le verrait pas.
+| Fichier | Changement |
+|---|---|
+| `apps/core/visibility.py` | `PrivacySpec(model, narrow)`, `REGISTRY`, `register()`, `find_spec`, `has_spec`, `narrow_for` — **le** point d'application |
+| `apps/{tasks,documents,briefings,interactions}/apps.py` | enregistrement depuis `ready()` ; `briefings` gagne un `ready()` qu'il n'avait pas |
+| `apps/agent/searchables.py` | le champ `visibility` **disparaît** (voir plus bas) |
+| `apps/agent/retrieval.py` | `apply_visibility` et `filter_visible_instances` lisent le registre |
+| `apps/{tasks,briefings,documents,interactions}/views.py` | les quatre `Q` écrits à la main appellent `narrow_for` |
+| `core/tests/test_privacy_isolation.py` | la partie 4 lit le **registre** et non plus le champ |
 
-**Critère principal** : aucun test existant ne change de valeur. Un refactor de
-visibilité qui déplace une frontière n'est pas un refactor.
+**Deux écarts assumés par rapport au cadrage initial, tous deux vers le plus
+strict :**
+
+1. **`SearchableSpec.visibility` est supprimé, pas rendu optionnel.** Le laisser en
+   surcharge aurait maintenu deux mécanismes pour une même règle. Surtout, le champ
+   était **mal placé** : il liait la confidentialité d'un modèle au fait d'être
+   *cherchable*, ce qui laissait `briefings.Briefing` sans domicile (son viewset
+   réécrivait donc le `Q`) et ne pourra jamais voir une confidentialité héritée, qui
+   ne porte aucun champ.
+2. **Pas de champ `mode: hide | redact`.** Le masquage est une décision de
+   **sérialisation**, pas de requêtage : le ranger dans un module qui borne des
+   querysets ferait croire qu'il y est appliqué alors que rien ne le lirait. Un champ
+   mort dans un module de visibilité coûte plus qu'une ligne à écrire au lot 4, avec
+   son producteur et son consommateur dans le même diff. Ce que la couche requête a à
+   dire de l'argent, elle le dit déjà : le `narrow` d'`interactions` ne cache pas les
+   dépenses.
+
+**Critère principal tenu** : aucun test existant ne change de valeur. Seule la
+partie 4 est réécrite — parce que son sujet, la déclaration, a changé de place.
+Suite complète : `4870 passed`.
 
 ---
 

@@ -5,7 +5,7 @@ from datetime import date
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
-from django.db.models import Q
+
 from django.utils import timezone
 from rest_framework import viewsets, filters, status
 from rest_framework.exceptions import ValidationError, PermissionDenied
@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
 from core.permissions import IsHouseholdMember
+from core.visibility import narrow_for
 from documents.mixins import DocumentLinkActionsMixin
 from documents.models import Document, DocumentLink
 from interactions.models import Interaction
@@ -76,7 +77,7 @@ class TaskViewSet(DocumentLinkActionsMixin, viewsets.ModelViewSet):
         # une permission ne se prononce que sur un objet déjà chargé, donc elle
         # protège le détail et laisse passer la liste — qui est justement là où on
         # lit les secrets des autres.
-        qs = qs.filter(Q(is_private=False) | Q(created_by=self.request.user))
+        qs = narrow_for(qs, self.request.user)
 
         zone_id = self.request.query_params.get('zone', '').strip()
         if zone_id:
