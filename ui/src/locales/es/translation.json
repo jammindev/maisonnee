@@ -22,12 +22,6 @@
       "active": "Activos",
       "inactive": "Inactivos"
     },
-    "visibility": {
-      "private": "Privado",
-      "shared": "Compartido",
-      "privateHint": "Privado — solo yo",
-      "sharedHint": "Compartido — todo el hogar"
-    },
     "fields": {
       "title": "Título",
       "titlePlaceholder": "Briefing de la mañana",
@@ -36,8 +30,7 @@
       "promptPlaceholder": "Mis tareas de la semana y el tiempo de hoy",
       "condition": "Condición",
       "conditionHint": "Opcional. El asistente solo envía el briefing cuando esto es cierto, p. ej. «si llueve hoy».",
-      "conditionPlaceholder": "Si llueve hoy",
-      "visibility": "Visibilidad"
+      "conditionPlaceholder": "Si llueve hoy"
     },
     "preview": {
       "action": "Vista previa",
@@ -899,7 +892,6 @@
     "assignedToMe": "Yo",
     "fieldProject": "Proyecto",
     "noProject": "Sin proyecto",
-    "fieldPrivate": "Tarea privada (visible solo para mí)",
     "private": "Privada",
     "filterPrivate": "Privado",
     "filterInactiveProjects": "Proyectos inactivos",
@@ -1518,6 +1510,10 @@
           "complete": {
             "title": "Terminar y reencontrar",
             "body": "Marca una tarea para terminarla; el historial sigue disponible."
+          },
+          "privacy": {
+            "title": "Guardar una tarea para uno mismo",
+            "body": "«Privado» reserva la tarea solo para ti: los demás miembros no la ven ni en la lista, ni en la búsqueda, ni a través del asistente. Una tarea privada no puede asignarse: elegir «privado» quita la asignación."
           }
         }
       },
@@ -1558,6 +1554,10 @@
           "link": {
             "title": "Enlazar con el contexto",
             "body": "Asocia zonas, documentos o tareas a una entrada para reencontrarla fácilmente."
+          },
+          "privacy": {
+            "title": "Guardar una nota para uno mismo",
+            "body": "«Privado» reserva la nota solo para ti, en todas partes. No genera ninguna notificación: el título de una nota es justamente lo que protege."
           }
         }
       },
@@ -1632,6 +1632,10 @@
           "find": {
             "title": "Reencontrar un documento",
             "body": "Filtra por tipo con un clic, agrupa por tipo o fecha, busca en el texto de los archivos — el asistente de IA también sabe encontrarlos."
+          },
+          "privacy": {
+            "title": "Guardar un documento para uno mismo",
+            "body": "«Privado» reserva el documento a quien lo subió, incluido su texto reconocido, así que el asistente deja de citarlo. Solo quien lo subió puede cambiar este ajuste."
           }
         }
       },
@@ -4829,5 +4833,14 @@
     },
     "replay": "Volver a jugar",
     "replayed": "Búsqueda lista para repetirse, en otro orden"
+  },
+  "privacy": {
+    "legend": "Visibilidad",
+    "shared": "Compartido",
+    "sharedHint": "Todo el hogar",
+    "private": "Privado",
+    "privateHint": "Solo yo",
+    "taskUnassigns": "Una tarea privada no puede asignarse: se quitará la asignación.",
+    "documentOwnerOnly": "Solo quien subió un documento puede cambiar su visibilidad."
   }
 }

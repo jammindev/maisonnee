@@ -22,12 +22,6 @@
       "active": "Aktiv",
       "inactive": "Inaktiv"
     },
-    "visibility": {
-      "private": "Privat",
-      "shared": "Geteilt",
-      "privateHint": "Privat — nur ich",
-      "sharedHint": "Geteilt — der ganze Haushalt"
-    },
     "fields": {
       "title": "Titel",
       "titlePlaceholder": "Morgen-Briefing",
@@ -36,8 +30,7 @@
       "promptPlaceholder": "Meine Aufgaben der Woche und das Wetter von heute",
       "condition": "Bedingung",
       "conditionHint": "Optional. Der Assistent sendet das Briefing nur, wenn dies zutrifft — z. B. „wenn es heute regnet\".",
-      "conditionPlaceholder": "Wenn es heute regnet",
-      "visibility": "Sichtbarkeit"
+      "conditionPlaceholder": "Wenn es heute regnet"
     },
     "preview": {
       "action": "Vorschau",
@@ -899,7 +892,6 @@
     "assignedToMe": "Ich",
     "fieldProject": "Projekt",
     "noProject": "Kein Projekt",
-    "fieldPrivate": "Private Aufgabe (nur für mich sichtbar)",
     "private": "Privat",
     "filterPrivate": "Privat",
     "filterInactiveProjects": "Inaktive Projekte",
@@ -1518,6 +1510,10 @@
           "complete": {
             "title": "Abschließen und wiederfinden",
             "body": "Haken Sie eine Aufgabe ab, um sie zu erledigen; der Verlauf bleibt einsehbar."
+          },
+          "privacy": {
+            "title": "Eine Aufgabe für sich behalten",
+            "body": "„Privat“ behält die Aufgabe für Sie allein: andere Mitglieder sehen sie weder in der Liste noch in der Suche noch über den Assistenten. Eine private Aufgabe kann nicht zugewiesen werden — „privat“ entfernt die Zuweisung."
           }
         }
       },
@@ -1558,6 +1554,10 @@
           "link": {
             "title": "Mit dem Kontext verknüpfen",
             "body": "Verbinden Sie Zonen, Dokumente oder Aufgaben mit einem Eintrag, um ihn leicht wiederzufinden."
+          },
+          "privacy": {
+            "title": "Eine Notiz für sich behalten",
+            "body": "„Privat“ behält die Notiz überall für Sie allein. Sie löst keine Benachrichtigung aus: der Titel einer Notiz ist genau das, was sie schützt."
           }
         }
       },
@@ -1632,6 +1632,10 @@
           "find": {
             "title": "Ein Dokument wiederfinden",
             "body": "Mit einem Klick nach Typ filtern, nach Typ oder Datum gruppieren, im Dateitext suchen — der KI-Assistent findet sie ebenfalls."
+          },
+          "privacy": {
+            "title": "Ein Dokument für sich behalten",
+            "body": "„Privat“ behält das Dokument bei der Person, die es hochgeladen hat — einschließlich des erkannten Textes, den der Assistent dann nicht mehr zitiert. Nur wer es hochgeladen hat, kann diese Einstellung ändern."
           }
         }
       },
@@ -4829,5 +4833,14 @@
     },
     "replay": "Nochmal spielen",
     "replayed": "Schatzsuche bereit für eine neue Runde, in neuer Reihenfolge"
+  },
+  "privacy": {
+    "legend": "Sichtbarkeit",
+    "shared": "Geteilt",
+    "sharedHint": "Der ganze Haushalt",
+    "private": "Privat",
+    "privateHint": "Nur ich",
+    "taskUnassigns": "Eine private Aufgabe kann nicht zugewiesen werden: die Zuweisung wird entfernt.",
+    "documentOwnerOnly": "Nur wer ein Dokument hochgeladen hat, kann seine Sichtbarkeit ändern."
   }
 }

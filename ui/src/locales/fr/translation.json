@@ -22,12 +22,6 @@
       "active": "Actifs",
       "inactive": "Inactifs"
     },
-    "visibility": {
-      "private": "Privé",
-      "shared": "Partagé",
-      "privateHint": "Privé — moi uniquement",
-      "sharedHint": "Partagé — tout le foyer"
-    },
     "fields": {
       "title": "Titre",
       "titlePlaceholder": "Briefing du matin",
@@ -36,8 +30,7 @@
       "promptPlaceholder": "Mes tâches de la semaine et la météo du jour",
       "condition": "Condition",
       "conditionHint": "Optionnel. L'assistant n'envoie le briefing que si c'est vrai — ex. « s'il pleut aujourd'hui ».",
-      "conditionPlaceholder": "S'il pleut aujourd'hui",
-      "visibility": "Visibilité"
+      "conditionPlaceholder": "S'il pleut aujourd'hui"
     },
     "preview": {
       "action": "Aperçu",
@@ -899,7 +892,6 @@
     "assignedToMe": "Moi",
     "fieldProject": "Projet",
     "noProject": "Aucun projet",
-    "fieldPrivate": "Tâche privée (visible uniquement par moi)",
     "private": "Privée",
     "filterPrivate": "Privé",
     "filterInactiveProjects": "Projets inactifs",
@@ -1518,6 +1510,10 @@
           "complete": {
             "title": "Terminer et retrouver",
             "body": "Cochez une tâche pour la terminer ; l'historique reste consultable."
+          },
+          "privacy": {
+            "title": "Garder une tâche pour soi",
+            "body": "« Privé » réserve la tâche à vous seul : les autres membres ne la voient ni dans la liste, ni dans la recherche, ni via l'assistant. Une tâche privée ne peut pas être assignée — choisir « privé » retire l'assignation."
           }
         }
       },
@@ -1558,6 +1554,10 @@
           "link": {
             "title": "Relier au contexte",
             "body": "Associez zones, documents ou tâches à une entrée pour la retrouver facilement."
+          },
+          "privacy": {
+            "title": "Garder une note pour soi",
+            "body": "« Privé » réserve la note à vous seul, partout. Elle ne déclenche aucune notification : le titre d'une note est justement ce qu'elle protège."
           }
         }
       },
@@ -1632,6 +1632,10 @@
           "find": {
             "title": "Retrouver un document",
             "body": "Filtrez par type d'un clic, groupez par type ou par date, cherchez dans le texte des fichiers — l'assistant IA sait aussi les retrouver."
+          },
+          "privacy": {
+            "title": "Garder un document pour soi",
+            "body": "« Privé » réserve le document à son déposant — son texte reconnu compris, donc l'assistant ne le cite plus. Seul le déposant peut changer ce réglage."
           }
         }
       },
@@ -4829,5 +4833,14 @@
     },
     "replay": "Rejouer",
     "replayed": "Chasse prête à rejouer, dans un nouvel ordre"
+  },
+  "privacy": {
+    "legend": "Visibilité",
+    "shared": "Partagé",
+    "sharedHint": "Tout le foyer",
+    "private": "Privé",
+    "privateHint": "Moi uniquement",
+    "taskUnassigns": "Une tâche privée ne peut pas être assignée : l'assignation sera retirée.",
+    "documentOwnerOnly": "Seul le déposant d'un document peut changer sa visibilité."
   }
 }

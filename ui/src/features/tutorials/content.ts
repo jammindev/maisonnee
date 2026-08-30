@@ -84,9 +84,9 @@ export const TUTORIAL_GUIDES: TutorialGuide[] = [
   // pièces, l'écran de composition est un formulaire qui ne mène nulle part.
   { key: 'games', moduleKey: 'games', to: '/app/games', stepIds: ['labels', 'compose', 'riddles', 'play', 'replay'] },
   { key: 'insurance', moduleKey: 'insurance', to: '/app/insurance', stepIds: ['contracts', 'documents'] },
-  { key: 'tasks', moduleKey: 'tasks', to: '/app/tasks', stepIds: ['create', 'organize', 'weather', 'complete'] },
+  { key: 'tasks', moduleKey: 'tasks', to: '/app/tasks', stepIds: ['create', 'organize', 'weather', 'complete', 'privacy'] },
   { key: 'projects', moduleKey: 'projects', to: '/app/projects', stepIds: ['create', 'plan', 'photos', 'budget'] },
-  { key: 'interactions', moduleKey: 'interactions', to: '/app/interactions', stepIds: ['log', 'types', 'link'] },
+  { key: 'interactions', moduleKey: 'interactions', to: '/app/interactions', stepIds: ['log', 'types', 'link', 'privacy'] },
   { key: 'trackers', moduleKey: 'trackers', to: '/app/trackers', stepIds: ['create', 'entries', 'charts'] },
   // Module « Argent » (parcours 26). Le premier guide explique **comment l'app
   // raisonne** — les trois suivants expliquent quoi cliquer. Cette séparation est
@@ -97,7 +97,7 @@ export const TUTORIAL_GUIDES: TutorialGuide[] = [
   { key: 'expenses', moduleKey: 'money_expenses', Icon: Receipt, to: '/app/money/accounts?tab=pending', stepIds: ['record', 'supplier', 'sort', 'control', 'sources', 'sheet', 'trace', 'review'] },
   { key: 'budget', moduleKey: 'money_budgets', Icon: PiggyBank, to: '/app/money/budgets', stepIds: ['create', 'assign', 'track', 'sheet', 'analysis', 'recurring', 'report'] },
   { key: 'banking', moduleKey: 'money_accounts', Icon: Landmark, to: '/app/money/accounts', stepIds: ['accounts', 'cash', 'openingBalance', 'import', 'journal', 'balance', 'sheet'] },
-  { key: 'documents', moduleKey: 'documents', to: '/app/documents', stepIds: ['upload', 'link', 'find'] },
+  { key: 'documents', moduleKey: 'documents', to: '/app/documents', stepIds: ['upload', 'link', 'find', 'privacy'] },
   // `sort` vient juste après `browse` : l'intention est la première question que
   // pose désormais la galerie, avant même « où est rangée cette photo ».
   { key: 'photos', moduleKey: 'photos', to: '/app/photos', stepIds: ['browse', 'sort', 'add', 'phone', 'file'] },

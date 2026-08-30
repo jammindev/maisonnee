@@ -22,12 +22,6 @@
       "active": "Active",
       "inactive": "Inactive"
     },
-    "visibility": {
-      "private": "Private",
-      "shared": "Shared",
-      "privateHint": "Private — only me",
-      "sharedHint": "Shared — the whole household"
-    },
     "fields": {
       "title": "Title",
       "titlePlaceholder": "Morning briefing",
@@ -36,8 +30,7 @@
       "promptPlaceholder": "My tasks for the week and today's weather",
       "condition": "Condition",
       "conditionHint": "Optional. The assistant only sends the briefing when this is true — e.g. \"if it rains today\".",
-      "conditionPlaceholder": "If it rains today",
-      "visibility": "Visibility"
+      "conditionPlaceholder": "If it rains today"
     },
     "preview": {
       "action": "Preview",
@@ -899,7 +892,6 @@
     "assignedToMe": "Me",
     "fieldProject": "Project",
     "noProject": "No project",
-    "fieldPrivate": "Private task (visible only to me)",
     "private": "Private",
     "filterPrivate": "Private",
     "filterInactiveProjects": "Inactive projects",
@@ -1518,6 +1510,10 @@
           "complete": {
             "title": "Complete and find again",
             "body": "Check a task to complete it; the history remains available."
+          },
+          "privacy": {
+            "title": "Keep a task to yourself",
+            "body": "“Private” keeps the task to you alone: other members see it neither in the list, nor in search, nor through the assistant. A private task cannot be assigned — choosing “private” removes the assignee."
           }
         }
       },
@@ -1558,6 +1554,10 @@
           "link": {
             "title": "Link to context",
             "body": "Attach zones, documents or tasks to an entry to find it back easily."
+          },
+          "privacy": {
+            "title": "Keep a note to yourself",
+            "body": "“Private” keeps the note to you alone, everywhere. It triggers no notification: a note's title is precisely what it protects."
           }
         }
       },
@@ -1632,6 +1632,10 @@
           "find": {
             "title": "Find a document again",
             "body": "Filter by type in one click, group by type or date, search inside file text — the AI assistant can find them too."
+          },
+          "privacy": {
+            "title": "Keep a document to yourself",
+            "body": "“Private” keeps the document to whoever uploaded it — including its recognised text, so the assistant stops citing it. Only the uploader can change this setting."
           }
         }
       },
@@ -4829,5 +4833,14 @@
     },
     "replay": "Replay",
     "replayed": "Hunt ready to play again, in a new order"
+  },
+  "privacy": {
+    "legend": "Visibility",
+    "shared": "Shared",
+    "sharedHint": "The whole household",
+    "private": "Private",
+    "privateHint": "Only me",
+    "taskUnassigns": "A private task cannot be assigned: the assignee will be removed.",
+    "documentOwnerOnly": "Only the person who uploaded a document can change its visibility."
   }
 }
