@@ -479,6 +479,15 @@
       "readingDate": "Date du relevé",
       "indexRequired": "La date et l'index sont requis.",
       "recentTitle": "Derniers relevés"
+    },
+    "chart": {
+      "rate": "Débit",
+      "rateUnit": "L/jour",
+      "rateUnitShort": "L/j",
+      "intervalDetail": "{{volume}} m³ relevés sur {{days}} jours",
+      "noReadingHere": "Aucun relevé ne couvre cette date.",
+      "needsTwoReadings": "Il faut deux relevés pour calculer une consommation.",
+      "averageRate": "soit {{rate}} {{unit}} en moyenne"
     }
   },
   "weather": {

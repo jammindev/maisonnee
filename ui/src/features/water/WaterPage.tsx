@@ -7,7 +7,7 @@ import { FilterPill } from '@/design-system/filter-pill';
 import CardActions, { type CardAction } from '@/components/CardActions';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import ConsumptionBarChart from '@/components/charts/ConsumptionBarChart';
+import WaterRateChart from './WaterRateChart';
 import WeatherOverlayToggle from '@/features/weather/WeatherOverlayToggle';
 import { useTemperatureOverlay } from '@/features/weather/overlay';
 import { appLocale } from '@/lib/format';
@@ -24,6 +24,7 @@ import {
   waterKeys,
 } from './hooks';
 import WaterReadingDialog from './WaterReadingDialog';
+import { buildIntervals, buildRateRows, coveredDays, type TickResolution } from './rateCurve';
 
 const GRANULARITIES: WaterGranularity[] = ['day', 'month', 'year'];
 
@@ -91,17 +92,15 @@ export default function WaterPage() {
     onDelete: (id: string) => deleteReading.mutateAsync(id),
   });
 
-  const chartSeries = React.useMemo(
-    () => [{ key: 'water', label: t('water.title'), color: 'hsl(var(--chart-2))' }],
-    [t],
-  );
-  const chartBuckets = React.useMemo(
-    () =>
-      (summary?.buckets ?? []).map((bucket) => ({
-        ts: bucket.ts,
-        values: { water: Math.round(bucket.total_l) / 1000 },
-      })),
-    [summary],
+  // Une seule dérivation des intervalles pour la page ; le graphe rappelle la
+  // même fonction pure sur les mêmes relevés (cf. `rateCurve.ts`).
+  const intervals = React.useMemo(() => buildIntervals(readings), [readings]);
+
+  // Le graphe trace une ligne par jour de la fenêtre : l'overlay doit s'aligner
+  // dessus, mais rester borné par la fenêtre (une décennie ne se télécharge pas).
+  const overlayBuckets = React.useMemo(
+    () => buildRateRows(intervals, from, to).map((row) => ({ ts: row.ts })),
+    [intervals, from, to],
   );
 
   const [showWeather, setShowWeather] = useSessionState<boolean>('water.showWeather', false);
@@ -109,7 +108,8 @@ export default function WaterPage() {
     from,
     to,
     granularity,
-    buckets: chartBuckets,
+    pointGranularity: 'day',
+    buckets: overlayBuckets,
     show: showWeather,
   });
 
@@ -146,7 +146,13 @@ export default function WaterPage() {
     );
   }
 
+  // Le résumé serveur reste le prédicat : un bucket existe exactement quand un
+  // intervalle recoupe la fenêtre. Deux relevés sont le minimum pour consommer.
   const hasData = (summary?.buckets.length ?? 0) > 0;
+  const needsSecondReading = readings.length < 2;
+  const daysCovered = coveredDays(intervals, from, to);
+  const averageRate = daysCovered > 0 ? (summary?.total_l ?? 0) / daysCovered : null;
+  const tickResolution: TickResolution = granularity;
 
   return (
     <div className="space-y-4">
@@ -202,20 +208,28 @@ export default function WaterPage() {
               {t('consumption.overPeriod')}
             </span>
           </p>
+          {averageRate !== null && (
+            <p className="text-sm text-muted-foreground">
+              {t('water.chart.averageRate', {
+                rate: Math.round(averageRate).toLocaleString(locale),
+                unit: t('water.chart.rateUnit'),
+              })}
+            </p>
+          )}
         </div>
         {summaryLoading && !summary ? (
           <div className="h-64 animate-pulse rounded-lg bg-muted sm:h-80" />
         ) : hasData && summary ? (
-          <ConsumptionBarChart
-            buckets={chartBuckets}
-            series={chartSeries}
-            granularity={granularity}
-            unit="m³"
+          <WaterRateChart
+            readings={readings}
+            from={from}
+            to={to}
+            tickResolution={tickResolution}
             overlay={weatherOverlay}
           />
         ) : (
-          <div className="flex h-64 items-center justify-center text-sm text-muted-foreground sm:h-80">
-            {t('consumption.noData')}
+          <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-muted-foreground sm:h-80">
+            {needsSecondReading ? t('water.chart.needsTwoReadings') : t('consumption.noData')}
           </div>
         )}
       </Card>
