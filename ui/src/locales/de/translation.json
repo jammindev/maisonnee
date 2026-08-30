@@ -472,6 +472,15 @@
       "readingDate": "Ablesedatum",
       "indexRequired": "Datum und Zählerstand sind erforderlich.",
       "recentTitle": "Letzte Ablesungen"
+    },
+    "chart": {
+      "rate": "Verbrauchsrate",
+      "rateUnit": "L/Tag",
+      "rateUnitShort": "L/T",
+      "intervalDetail": "{{volume}} m³ über {{days}} Tage abgelesen",
+      "noReadingHere": "Für dieses Datum liegt keine Ablesung vor.",
+      "needsTwoReadings": "Für eine Verbrauchsberechnung sind zwei Ablesungen nötig.",
+      "averageRate": "das sind durchschnittlich {{rate}} {{unit}}"
     }
   },
   "weather": {

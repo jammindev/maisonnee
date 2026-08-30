@@ -472,6 +472,15 @@
       "readingDate": "Fecha de lectura",
       "indexRequired": "La fecha y el índice son obligatorios.",
       "recentTitle": "Últimas lecturas"
+    },
+    "chart": {
+      "rate": "Caudal",
+      "rateUnit": "L/día",
+      "rateUnitShort": "L/d",
+      "intervalDetail": "{{volume}} m³ medidos en {{days}} días",
+      "noReadingHere": "Ninguna lectura cubre esta fecha.",
+      "needsTwoReadings": "Se necesitan dos lecturas para calcular el consumo.",
+      "averageRate": "es decir {{rate}} {{unit}} de media"
     }
   },
   "weather": {

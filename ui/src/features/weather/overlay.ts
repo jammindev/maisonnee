@@ -61,6 +61,13 @@ export function useTemperatureOverlay(opts: {
   granularity: Granularity;
   buckets: { ts: string }[];
   show: boolean;
+  /**
+   * Résolution des points, quand elle diffère de celle qui décide de la
+   * disponibilité. L'eau trace une grille quotidienne sur une fenêtre d'un an
+   * (#678) : c'est la fenêtre qui borne la taille du fetch, mais les points
+   * doivent s'aligner sur les lignes du graphe, donc au jour.
+   */
+  pointGranularity?: Granularity;
 }): { available: boolean; overlay: ConsumptionChartOverlay | undefined } {
   const { t } = useTranslation();
   const { household } = useActiveHousehold();
@@ -75,7 +82,11 @@ export function useTemperatureOverlay(opts: {
   const { data } = useWeatherHistory({ date_from: opts.from, date_to: opts.to }, enabled);
 
   const points = enabled && data?.points
-    ? buildTemperatureOverlay(opts.buckets, data.points, opts.granularity)
+    ? buildTemperatureOverlay(
+        opts.buckets,
+        data.points,
+        opts.pointGranularity ?? opts.granularity,
+      )
     : [];
 
   const overlay: ConsumptionChartOverlay | undefined =

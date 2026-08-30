@@ -472,6 +472,15 @@
       "readingDate": "Reading date",
       "indexRequired": "Date and index are required.",
       "recentTitle": "Latest readings"
+    },
+    "chart": {
+      "rate": "Usage rate",
+      "rateUnit": "L/day",
+      "rateUnitShort": "L/d",
+      "intervalDetail": "{{volume}} m³ measured over {{days}} days",
+      "noReadingHere": "No reading covers this date.",
+      "needsTwoReadings": "Two readings are needed to work out consumption.",
+      "averageRate": "that is {{rate}} {{unit}} on average"
     }
   },
   "weather": {
