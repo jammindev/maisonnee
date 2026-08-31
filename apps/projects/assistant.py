@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 from dataclasses import dataclass
 
 from django.utils import translation
@@ -78,6 +79,31 @@ MAX_CONTEXT_ZONES = 80
 #: Même borne, même raison, pour les enveloppes budgétaires.
 MAX_CONTEXT_BUDGETS = 40
 
+#: Pièces jointes lisibles en une fois, et longueur du texte extrait qu'on montre
+#: au modèle. Un devis scanné fait des milliers de caractères : tout envoyer
+#: gonflerait le prompt à chaque tour, alors que l'essentiel (l'entreprise, le
+#: montant, la nature des travaux) tient dans les premières lignes.
+MAX_DOCUMENTS = 5
+MAX_DOCUMENT_CHARS = 2000
+
+
+@dataclass(frozen=True)
+class Suggestion:
+    """Une valeur **lue dans une pièce jointe**, et le fichier qui la porte.
+
+    C'est la seule exception à « le modèle ne remplit jamais un montant », et
+    elle tient à une chose : ce chiffre n'est pas une devinette, il a une source
+    que l'utilisateur peut ouvrir. D'où le `source` obligatoire — une suggestion
+    sans pièce citable n'est plus une citation, c'est une estimation déguisée, et
+    elle est refusée à l'analyse.
+
+    Elle ne remplit rien toute seule pour autant : l'écran l'affiche à côté du
+    champ avec un bouton « utiliser ce montant ». Un clic, un geste délibéré.
+    """
+
+    amount: str
+    source: str
+
 
 @dataclass(frozen=True)
 class Question:
@@ -88,6 +114,7 @@ class Question:
     input: str = "text"
     hint: str = ""
     choices: tuple[str, ...] = ()
+    suggestion: Suggestion | None = None
 
 
 @dataclass(frozen=True)
@@ -123,14 +150,18 @@ _ASKING = _COMMON + (
     '{"state":"asking","question":"<one short question>","field":"<snake_case '
     'slug naming what you are asking>","input":"text|amount|date|zones|choice",'
     '"hint":"<optional one sentence of help, may include a typical price range>",'
-    '"choices":["<option>",…]}\n'
+    '"choices":["<option>",…],'
+    '"suggestion":{"amount":"<decimal>","source":"<exact attached file name>"}}\n'
     "Or, if you already know enough, produce the plan:\n"
     '{"state":"ready","plan":{…}}\n'
     "Rules for questions: ask about ONE thing; never repeat a question already "
     'answered; use input "amount" for money, "date" for a deadline, "zones" for '
     'where in the home, "choice" with 2-5 options when the answer is a small set. '
     "NEVER put a number in the question when asking for money — if you know a "
-    "typical price range, say it in 'hint' and leave the answer to the user."
+    "typical price range, say it in 'hint' and leave the answer to the user. "
+    "The ONLY exception is 'suggestion': when an attached file states an "
+    "amount, put it there with the exact file name it came from. Never put a "
+    "suggestion you did not read in an attached file."
 )
 
 _CONCLUDING = _COMMON + (
@@ -172,6 +203,7 @@ def next_step(
     force_ready: bool = False,
     language: str | None = None,
     user=None,
+    document_ids: list | None = None,
 ) -> Step:
     """Le tour suivant de l'entretien — une question, ou le plan.
 
@@ -196,10 +228,17 @@ def next_step(
     lang = language or translation.get_language() or "en"
     system = (_CONCLUDING if must_conclude else _ASKING) + _PLAN_SHAPE
 
+    # Résolus **avant** l'appel : le contexte n'accepte que ce que ce lecteur a le
+    # droit de lire, et `_parse_question` n'accepte une citation que si elle
+    # nomme l'un de ces fichiers-là.
+    documents = _readable_documents(household, user, document_ids)
+
     client = get_llm_client()
     response = client.complete(
         system=system,
-        user=_user_message(household, subject=subject, turns=turns, language=lang),
+        user=_user_message(
+            household, subject=subject, turns=turns, language=lang, documents=documents
+        ),
         feature="project_assistant",
         household_id=household.id,
         user_id=getattr(user, "id", None),
@@ -210,7 +249,11 @@ def next_step(
         metadata={"asked": asked, "concluding": must_conclude, "language": lang},
     )
 
-    step = _parse(response.text, must_conclude=must_conclude)
+    step = _parse(
+        response.text,
+        must_conclude=must_conclude,
+        sources={document.name for document in documents},
+    )
     return Step(
         state=step.state,
         asked=asked,
@@ -333,7 +376,50 @@ def _zone_ids(household, names) -> tuple[list[str], list[str]]:
     return found, missing
 
 
-def _user_message(household, *, subject: str, turns: list[dict], language: str) -> str:
+def _readable_documents(household, viewer, document_ids):
+    """Les pièces jointes que **ce lecteur** a le droit de lire, dans l'ordre reçu.
+
+    La restriction passe par `core.visibility.visible_to_creator`, jamais par un
+    `Q` réécrit ici : c'est le module qui existe pour que la liste, la permission
+    objet et le contexte de l'assistant ne puissent pas donner trois réponses. Un
+    document privé d'un autre membre ne doit pas entrer dans un prompt — ce serait
+    la même fuite que celle des notes privées, avec un intermédiaire de plus.
+
+    Le scope foyer est appliqué en premier : un id venu du client ne se croit pas.
+    """
+    from core.visibility import visible_to_creator
+    from documents.models import Document
+
+    ids = [str(value) for value in (document_ids or [])][:MAX_DOCUMENTS]
+    if not ids:
+        return []
+    readable = visible_to_creator(
+        Document.objects.filter(household=household, id__in=ids), viewer
+    )
+    by_id = {str(document.id): document for document in readable}
+    return [by_id[value] for value in ids if value in by_id]
+
+
+def _documents_block(documents) -> str:
+    """Ce que les pièces jointes disent, tronqué.
+
+    Aucun appel de vision ici : l'extraction a déjà eu lieu au téléversement
+    (`documents/views.py::_run_extraction`). Ce module ne fait que **relire** un
+    texte déjà payé, donc il n'a pas de cap à lui.
+    """
+    if not documents:
+        return ""
+    lines = ["", "Files the user attached (quote the file name when you cite one):"]
+    for document in documents:
+        text = (document.ocr_text or "").strip()
+        excerpt = text[:MAX_DOCUMENT_CHARS] if text else "(no text could be read)"
+        lines.append(f"--- {document.name} ---\n{excerpt}")
+    return "\n".join(lines)
+
+
+def _user_message(
+    household, *, subject: str, turns: list[dict], language: str, documents=None
+) -> str:
     """Tout ce que le modèle voit : le but, ce qui a déjà été dit, la maison.
 
     Volontairement pauvre — l'entretien n'est pas un RAG. On ne lui donne ni les
@@ -361,6 +447,9 @@ def _user_message(household, *, subject: str, turns: list[dict], language: str) 
     else:
         lines.append("")
         lines.append("No question has been asked yet.")
+    block = _documents_block(documents)
+    if block:
+        lines.append(block)
     return "\n".join(lines)
 
 
@@ -392,7 +481,7 @@ def _zone_names(household) -> str:
     return ", ".join(names) if names else "(none declared yet)"
 
 
-def _parse(text: str, *, must_conclude: bool) -> Step:
+def _parse(text: str, *, must_conclude: bool, sources: set[str] | None = None) -> Step:
     """Valide la réponse du modèle, ou lève — jamais de demi-résultat.
 
     ``must_conclude`` est le garde-fou du plafond : quand il est vrai, une
@@ -425,11 +514,16 @@ def _parse(text: str, *, must_conclude: bool) -> Step:
             # Le modèle a insisté pour questionner alors qu'il n'en avait plus le
             # droit. On ne rattrape pas : l'appelant relance en mode conclusion.
             raise ValueError("The model asked a question when it had to conclude.")
-        return Step(state="asking", asked=0, remaining=0, question=_parse_question(parsed))
+        return Step(
+            state="asking",
+            asked=0,
+            remaining=0,
+            question=_parse_question(parsed, sources or set()),
+        )
     raise ValueError(f"Unknown state: {state!r}")
 
 
-def _parse_question(payload: dict) -> Question:
+def _parse_question(payload: dict, sources: set[str]) -> Question:
     text = _text(payload.get("question"))
     if not text:
         raise ValueError("The model returned an empty question.")
@@ -448,7 +542,33 @@ def _parse_question(payload: dict) -> Question:
         input=kind,
         hint=_text(payload.get("hint")),
         choices=choices[:5],
+        suggestion=_parse_suggestion(payload.get("suggestion"), sources),
     )
+
+
+def _parse_suggestion(raw, sources: set[str]) -> Suggestion | None:
+    """Une citation, ou rien — et jamais une estimation déguisée.
+
+    La citation n'est gardée que si elle **nomme un fichier réellement joint** à
+    ce tour. Sans ce contrôle, « le devis indique 3 180 € » serait une phrase que
+    le modèle peut écrire sans avoir rien lu, et le seul chiffre qu'il ait le
+    droit de proposer redeviendrait une devinette — avec, en prime, l'autorité
+    d'une source inventée.
+
+    On ne lève pas : une suggestion douteuse est **retirée**, la question reste
+    posée. Perdre le tour entier pour un champ facultatif serait disproportionné.
+    """
+    if not isinstance(raw, dict):
+        return None
+    amount = _text(raw.get("amount"))
+    source = _text(raw.get("source"))
+    if not amount or source not in sources:
+        return None
+    try:
+        Decimal(amount.replace(",", "."))
+    except InvalidOperation:
+        return None
+    return Suggestion(amount=amount.replace(",", "."), source=source)
 
 
 def _parse_plan(payload) -> Plan:

@@ -1,4 +1,5 @@
-import type { AssistantPlan, PlanItem, PlanProject } from '@/lib/api/projects';
+import type { AssistantCreateInput, PlanItem, PlanProject } from '@/lib/api/projects';
+import type { AssistantPlan } from '@/lib/api/projects';
 
 /**
  * Le brouillon de l'écran de relecture, et sa conversion en corps de requête.
@@ -85,8 +86,11 @@ function toPayloadItem(item: DraftItem): PlanItem {
  * lui qui doit le dire — pas un contrôle client qui divergerait), et aucun champ
  * d'affichage ne fuit dans la requête.
  */
-export function toPayload(draft: Draft): AssistantPlan {
+export function toPayload(draft: Draft, documentIds: number[] = []): AssistantCreateInput {
   return {
+    // Les pièces jointes ne sont pas dans le brouillon : elles ne se relisent
+    // pas, elles se joignent. Elles voyagent donc à côté du plan.
+    document_ids: documentIds,
     project: {
       ...draft.project,
       title: draft.project.title.trim(),

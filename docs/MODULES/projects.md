@@ -65,11 +65,14 @@ plan (projet + tâches + notes). Ce que tout changement doit préserver :
   appels au fournisseur. Le plancher global compte des requêtes, pas des euros.
 - **Le rayon d'action d'une consigne injectée dans `goal` est borné, et c'est ce
   qui rend le texte libre acceptable.** Le contexte envoyé au modèle ne contient
-  que les noms de zones du foyer — que l'appelant voit déjà — et la sortie n'est
-  jamais écrite : au pire, un membre se fabrique à lui-même un plan absurde,
-  qu'il lit avant de le créer. Cette phrase cesse d'être vraie le jour où le
-  contexte s'enrichit (documents du lot 5, budgets du lot 4) ou où un plan se
-  crée sans relecture : il faudra alors reposer la question.
+  que ce que l'appelant voit déjà — les noms de zones, les enveloppes du foyer
+  (lot 4), le texte des pièces qu'il a le droit de lire (lot 5) — et la sortie
+  n'est jamais écrite : au pire, un membre se fabrique à lui-même un plan
+  absurde, qu'il lit avant de le créer. **La question a donc été reposée à chaque
+  enrichissement, et la réponse tient à une seule propriété : le contexte est
+  filtré par le lecteur, jamais par le foyer seul** (`core.visibility`, voir le
+  lot 5). Elle cesserait d'être vraie le jour où un plan se crée sans relecture,
+  ou le jour où une source non lisible par l'appelant entrerait dans le prompt.
 
 ### L'écriture du plan (lot 2)
 
@@ -207,6 +210,87 @@ phases), `ProjectAssistantInterview`, `AnswerField`, `ProjectAssistantReview`, e
   à `PurchaseForm` — **modifiable** : c'est un défaut, pas une contrainte. Sans
   lui, chaque achat repartait sur « aucun budget », donc sur l'écart que l'app
   aurait ensuite réclamé de réparer.
+
+### Les pièces jointes (lot 5)
+
+`document_ids` sur les **deux** endpoints (`assistant-step` et `assistant-create`).
+Le texte déjà extrait au téléversement entre dans le contexte ; le projet créé porte
+un `DocumentLink` par pièce. Régression :
+`apps/projects/tests/test_assistant_documents.py`.
+
+- **⚠️ Les clés de `Document` sont des ENTIERS**, pas des UUID — contrairement à
+  presque tout le reste du dépôt. Un `UUIDField` dans le serializer donne un 400
+  « Must be a valid UUID » sur une saisie parfaitement normale. Le type TS
+  `DocumentItem.id: string` est faux de son côté (l'API rend un nombre), d'où un
+  `Number(...)` **local et commenté** dans `ProjectAssistantDialog` plutôt qu'une
+  correction de type qui traverserait tous les écrans documents. La nature entière
+  de la clé est figée par `TestADocumentKeyIsAnInteger` pour que la coercition ne
+  devienne pas un mystère.
+- **⚠️ Un document privé d'un autre membre n'entre jamais dans le prompt**, et la
+  restriction passe par `core.visibility.visible_to_creator` — jamais par un `Q`
+  réécrit sur place. Ce serait la fuite du privé par une **huitième porte**, avec
+  un intermédiaire de plus : un texte parti chez un fournisseur ne se rattrape
+  pas. Même règle à la **liaison** : accrocher le privé d'un autre à un chantier
+  que tout le foyer voit publierait le fichier par l'autre bout.
+- **Le scope foyer s'applique avant tout le reste** : un id venu du client ne se
+  croit pas. Un document d'un autre foyer est **ignoré, pas refusé en 403** —
+  divergence assumée avec le critère du backlog. À ce point du code, un id
+  étranger et un id supprimé sont indistinguables ; répondre 403 sur le premier en
+  créant sur le second ferait de l'endpoint un **oracle d'existence** pour la
+  bibliothèque du voisin, et coûterait la règle « un id inconnu ne fait pas échouer
+  la création ». Le fichier n'est pas lu, c'est ce qui compte.
+- **Aucun appel de vision sur ce chemin, donc aucun cap à lui.** L'extraction a
+  déjà eu lieu au téléversement (`documents/views.py::_run_extraction`, borné par
+  la portée `document_upload`) ; ce module ne fait que **relire** un texte payé une
+  fois. Ne pas y rajouter un throttle « au cas où » : il compterait des requêtes
+  qui ne coûtent rien de plus que le tour d'entretien déjà borné à 60/h.
+- **Ce qui est envoyé est tronqué** : `MAX_DOCUMENTS = 5`,
+  `MAX_DOCUMENT_CHARS = 2000`. Un devis scanné fait des milliers de caractères et
+  le contexte repart **à chaque tour** : tout envoyer multiplierait le prompt par
+  six sur un entretien complet, alors que l'entreprise, le montant et la nature des
+  travaux tiennent dans les premières lignes.
+- **⚠️ Une citation ne vaut que si elle nomme une pièce réellement jointe à ce
+  tour.** C'est la **seule exception** à « le modèle ne remplit jamais un montant »,
+  et elle tient entièrement à la source consultable : sans ce contrôle,
+  « le devis indique 3 180 € » est une phrase qu'un modèle peut écrire sans avoir
+  rien lu — avec, en prime, l'autorité d'une source inventée. `_parse_suggestion`
+  n'accepte donc que les `source` de la liste résolue *avant* l'appel, et exige un
+  `Decimal` valide.
+- **Une suggestion douteuse est retirée, la question reste posée.** On ne lève pas :
+  perdre le tour entier pour un champ facultatif serait disproportionné, et
+  l'utilisateur ne saurait pas pourquoi. Régression :
+  `TestACitationNeedsAConsultableSource::test_a_bad_suggestion_does_not_lose_the_question`.
+- **Et une citation ne remplit rien toute seule.** L'écran l'affiche **à côté** du
+  champ, avec un bouton « utiliser ce montant » ; le champ reste vide tant que
+  personne ne clique. Un montant recopié d'office redeviendrait indistinguable d'un
+  montant décidé par le foyer — exactement ce que la règle du lot 1 empêche. Ne
+  jamais « simplifier » en pré-remplissant. Attesté en vrai navigateur :
+  `e2e/project-assistant.spec.ts`, `PROJ-13`.
+- **`suggestion` est toujours dans le payload, `null` compris.** Un champ qui
+  apparaît et disparaît oblige le front à distinguer « absent » de « vide », alors
+  que les deux veulent dire la même chose ici.
+- **L'entretien ne possède pas le fichier.** Téléverser est un geste délibéré et
+  indépendant, qui passe par le `DocumentUploadDialog` **existant** : le fichier
+  entre dans la bibliothèque du foyer comme n'importe quel autre. Un entretien
+  abandonné le laisse donc là, **sans lien** — comportement attendu, figé par
+  `test_an_abandoned_interview_leaves_the_file_in_the_library` pour qu'on ne le
+  « corrige » pas : faire l'inverse demanderait une transaction qui embrasse un
+  envoi de fichier.
+- **Un id inconnu à la création est ignoré, il ne perd pas le chantier.** Le
+  document a pu être supprimé entre l'entretien et la validation, et perdre un plan
+  relu pour une pièce jointe manquante serait disproportionné : les pièces sont un
+  complément, pas la matière du plan.
+- **La liaison passe par `documents.services.link_document`** (upsert idempotent),
+  jamais par un `DocumentLink.objects.create` — c'est le seul point d'écriture sur
+  cette table.
+- **« Joindre » n'apparaît qu'une fois l'entretien commencé**, et c'est le cœur du
+  lot : dans la version rollbackée, le téléversement était un passage **obligé
+  placé avant** la génération, ce qui rendait la création lourde avant même la
+  première question. On parle d'abord, on joint si on a quelque chose.
+- Les pièces jointes **ne vivent pas dans le brouillon** de relecture : elles ne se
+  relisent pas, elles se joignent. Elles voyagent à côté du plan, du premier tour à
+  la création.
+
 
 ## Notes / décisions produit
 

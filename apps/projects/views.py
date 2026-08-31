@@ -148,6 +148,7 @@ class ProjectViewSet(DocumentLinkActionsMixin, _HouseholdScopedViewSet):
                 history=serializer.validated_data["history"],
                 force_ready=serializer.validated_data["force_ready"],
                 user=request.user,
+                document_ids=serializer.validated_data["document_ids"],
             )
         except ValueError as exc:
             # Forme inattendue : rien n'est rendu, et le front garde la question
@@ -285,12 +286,21 @@ def _serialize_step(step) -> dict:
         "remaining": step.remaining,
     }
     if step.question is not None:
+        suggestion = step.question.suggestion
         payload["question"] = {
             "text": step.question.text,
             "field": step.question.field,
             "input": step.question.input,
             "hint": step.question.hint,
             "choices": list(step.question.choices),
+            # Toujours présent, `null` compris : un champ qui apparaît et
+            # disparaît oblige le front à distinguer « absent » de « vide », et
+            # les deux veulent dire la même chose ici.
+            "suggestion": (
+                {"amount": suggestion.amount, "source": suggestion.source}
+                if suggestion is not None
+                else None
+            ),
         }
     if step.plan is not None:
         payload["plan"] = {

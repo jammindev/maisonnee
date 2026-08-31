@@ -1537,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Das Projekt anlegen",
-            "body": "Zwei Wege. „Mit dem Assistenten erstellen“ stellt einige Fragen und schlägt dann das Projekt mit Aufgaben und Notizen vor — nichts wird erstellt, bevor du es geprüft und Unnötiges abgewählt hast. Oder füll das Formular selbst aus, wenn du schon weißt, was du willst."
+            "body": "Zwei Wege. „Mit dem Assistenten erstellen“ stellt einige Fragen und schlägt dann das Projekt mit Aufgaben und Notizen vor — nichts wird erstellt, bevor du es geprüft und Unnötiges abgewählt hast. Oder füll das Formular selbst aus, wenn du schon weißt, was du willst. Während des Gesprächs kannst du einen Kostenvoranschlag oder ein Foto anhängen: Der Assistent nutzt es für seine Fragen, und die Datei landet am erstellten Projekt."
           },
           "plan": {
             "title": "Aufgaben und Notizen bündeln",
@@ -3079,12 +3079,14 @@
       "answer": {
         "amountPlaceholder": "Ein Betrag",
         "otherPlaceholder": "…oder etwas anderes",
-        "textPlaceholder": "Deine Antwort"
+        "textPlaceholder": "Deine Antwort",
+        "useAmount": "{{source}} nennt {{amount}} — diesen Betrag übernehmen"
       },
       "budgetLabel": "Ausgaben-Umschlag",
       "budgetNone": "Kein Umschlag",
       "budgetNew": "„{{name}}“ erstellen",
-      "budgetHint": "Er ordnet die Ausgaben des Projekts ein, begrenzt sie aber nicht — die Obergrenze bleibt das geplante Budget oben."
+      "budgetHint": "Er ordnet die Ausgaben des Projekts ein, begrenzt sie aber nicht — die Obergrenze bleibt das geplante Budget oben.",
+      "attach": "Angebot oder Foto anhängen"
     }
   },
   "notifications": {

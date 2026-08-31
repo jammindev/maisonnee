@@ -6,6 +6,7 @@ import type { AssistantQuestion, AssistantStep, AssistantTurn } from '@/lib/api/
 import { useAssistantStep, useCreateProjectFromPlan } from '../hooks';
 import ProjectAssistantInterview from './ProjectAssistantInterview';
 import ProjectAssistantReview from './ProjectAssistantReview';
+import DocumentUploadDialog from '@/features/documents/DocumentUploadDialog';
 import { type Draft, toDraft, toPayload } from './plan';
 
 /**
@@ -39,6 +40,11 @@ export default function ProjectAssistantDialog({ open, onOpenChange }: Props) {
   const [remaining, setRemaining] = React.useState(0);
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // Les pièces jointes ne sont pas dans le brouillon : elles ne se relisent pas,
+  // elles se joignent. Elles vivent donc à côté du plan, du premier tour à la
+  // création.
+  const [attachments, setAttachments] = React.useState<{ id: number; name: string }[]>([]);
+  const [uploadOpen, setUploadOpen] = React.useState(false);
 
   const stepMutation = useAssistantStep();
   const createMutation = useCreateProjectFromPlan();
@@ -56,6 +62,7 @@ export default function ProjectAssistantDialog({ open, onOpenChange }: Props) {
     setRemaining(0);
     setDraft(null);
     setError(null);
+    setAttachments([]);
   }, [open]);
 
   const applyStep = (step: AssistantStep) => {
@@ -83,7 +90,12 @@ export default function ProjectAssistantDialog({ open, onOpenChange }: Props) {
    */
   const runStep = (nextHistory: AssistantTurn[], forceReady: boolean) => {
     stepMutation.mutate(
-      { goal: goal.trim(), history: nextHistory, force_ready: forceReady },
+      {
+        goal: goal.trim(),
+        history: nextHistory,
+        force_ready: forceReady,
+        document_ids: attachments.map((file) => file.id),
+      },
       {
         onSuccess: (step) => {
           setHistory(nextHistory);
@@ -122,7 +134,7 @@ export default function ProjectAssistantDialog({ open, onOpenChange }: Props) {
 
   const handleCreate = () => {
     if (!draft) return;
-    createMutation.mutate(toPayload(draft), {
+    createMutation.mutate(toPayload(draft, attachments.map((file) => file.id)), {
       onSuccess: (project) => {
         onOpenChange(false);
         // On mène au chantier créé : « c'est fait » sans pouvoir aller voir est
@@ -165,8 +177,34 @@ export default function ProjectAssistantDialog({ open, onOpenChange }: Props) {
           asked={asked}
           remaining={remaining}
           error={error}
+          attachments={attachments}
+          onAttach={() => setUploadOpen(true)}
         />
       )}
+
+      {/* Le téléversement passe par le dialogue **existant** : le fichier entre
+          dans la bibliothèque du foyer comme n'importe quel autre, et y reste
+          même si l'entretien est abandonné. L'entretien ne le possède pas — le
+          lier au chantier est une seconde étape, à la création. */}
+      <DocumentUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        titleSuffix={t('projects.assistant.title')}
+        onSaved={(created) => {
+          if (created) {
+            // `Number(...)` parce que `DocumentItem.id` est typé `string` côté
+            // front alors que la clé de `Document` est un **entier** en base :
+            // l'API renvoie un nombre, le type ment. Corriger le type
+            // traverserait tous les écrans documents — hors périmètre de ce lot,
+            // suivi par une issue. La coercition est locale et vraie dans les
+            // deux cas.
+            setAttachments((current) => [
+              ...current,
+              { id: Number(created.id), name: created.name },
+            ]);
+          }
+        }}
+      />
     </SheetDialog>
   );
 }

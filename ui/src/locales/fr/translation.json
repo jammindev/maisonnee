@@ -1537,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Créer le projet",
-            "body": "Deux portes. « Créer avec l’assistant » vous pose quelques questions, puis propose le projet avec ses tâches et ses notes — rien n’est créé avant que vous ayez relu et décoché ce qui ne sert pas. Ou remplissez le formulaire vous-même, si vous savez déjà."
+            "body": "Deux portes. « Créer avec l’assistant » vous pose quelques questions, puis propose le projet avec ses tâches et ses notes — rien n’est créé avant que vous ayez relu et décoché ce qui ne sert pas. Ou remplissez le formulaire vous-même, si vous savez déjà. Pendant l’entretien, vous pouvez joindre un devis ou une photo : l’assistant s’en sert pour ses questions, et la pièce se retrouve sur le projet créé."
           },
           "plan": {
             "title": "Rassembler tâches et notes",
@@ -3079,12 +3079,14 @@
       "answer": {
         "amountPlaceholder": "Un montant",
         "otherPlaceholder": "…ou autre chose",
-        "textPlaceholder": "Ta réponse"
+        "textPlaceholder": "Ta réponse",
+        "useAmount": "{{source}} indique {{amount}} — utiliser ce montant"
       },
       "budgetLabel": "Enveloppe des dépenses",
       "budgetNone": "Aucune enveloppe",
       "budgetNew": "Créer « {{name}} »",
-      "budgetHint": "Elle classe les dépenses du chantier, elle ne les plafonne pas — le plafond reste le budget prévisionnel ci-dessus."
+      "budgetHint": "Elle classe les dépenses du chantier, elle ne les plafonne pas — le plafond reste le budget prévisionnel ci-dessus.",
+      "attach": "Joindre un devis ou une photo"
     }
   },
   "notifications": {

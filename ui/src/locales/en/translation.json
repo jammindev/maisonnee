@@ -1537,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Create the project",
-            "body": "Two doors. “Create with the assistant” asks you a few questions, then proposes the project with its tasks and notes — nothing is created until you have reviewed it and unchecked what you do not need. Or fill in the form yourself, if you already know."
+            "body": "Two doors. “Create with the assistant” asks you a few questions, then proposes the project with its tasks and notes — nothing is created until you have reviewed it and unchecked what you do not need. Or fill in the form yourself, if you already know. During the interview you can attach a quote or a photo: the assistant uses it for its questions, and the file ends up on the project it creates."
           },
           "plan": {
             "title": "Gather tasks and notes",
@@ -3079,12 +3079,14 @@
       "answer": {
         "amountPlaceholder": "An amount",
         "otherPlaceholder": "…or something else",
-        "textPlaceholder": "Your answer"
+        "textPlaceholder": "Your answer",
+        "useAmount": "{{source}} states {{amount}} — use this amount"
       },
       "budgetLabel": "Spending envelope",
       "budgetNone": "No envelope",
       "budgetNew": "Create “{{name}}”",
-      "budgetHint": "It files the project’s expenses, it does not cap them — the ceiling stays the planned budget above."
+      "budgetHint": "It files the project’s expenses, it does not cap them — the ceiling stays the planned budget above.",
+      "attach": "Attach a quote or a photo"
     }
   },
   "notifications": {

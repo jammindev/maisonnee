@@ -1,11 +1,13 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
+import { FileText } from 'lucide-react';
 import { Input } from '@/design-system/input';
 import { Textarea } from '@/design-system/textarea';
 import { DecimalInput } from '@/design-system/decimal-input';
 import ZonePicker from '@/features/zones/ZonePicker';
 import { useZones } from '@/features/zones/hooks';
 import { cn } from '@/lib/utils';
+import { formatAmount } from '@/lib/format';
 import type { AssistantQuestion } from '@/lib/api/projects';
 
 /**
@@ -37,13 +39,33 @@ export default function AnswerField({ question, value, onChange, disabled, input
 
   if (question.input === 'amount') {
     return (
-      <DecimalInput
-        id={inputId}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        placeholder={t('projects.assistant.answer.amountPlaceholder')}
-      />
+      <div className="space-y-2">
+        <DecimalInput
+          id={inputId}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          placeholder={t('projects.assistant.answer.amountPlaceholder')}
+        />
+        {/* Un montant lu dans une pièce jointe peut être **proposé**, parce qu'il
+            a une source consultable — mais il ne se recopie que sur un clic. Le
+            champ reste vide tant que personne n'a agi : c'est ce qui distingue
+            une citation d'une estimation qu'on ferait passer pour un choix. */}
+        {question.suggestion ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(question.suggestion!.amount)}
+            className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            <FileText className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            {t('projects.assistant.answer.useAmount', {
+              amount: formatAmount(question.suggestion.amount),
+              source: question.suggestion.source,
+            })}
+          </button>
+        ) : null}
+      </div>
     );
   }
 
