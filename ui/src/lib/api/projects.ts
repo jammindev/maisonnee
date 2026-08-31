@@ -270,12 +270,29 @@ export async function deleteProjectGroup(id: string): Promise<void> {
  */
 export type AssistantInput = 'text' | 'amount' | 'date' | 'zones' | 'choice';
 
+/**
+ * Un montant **lu dans une pièce jointe**, et le fichier qui le porte.
+ *
+ * La seule exception à « le modèle ne remplit jamais un montant », et elle tient
+ * à une chose : ce chiffre n'est pas une devinette, il a une source que
+ * l'utilisateur peut ouvrir. Le serveur ne la transmet que si `source` nomme un
+ * fichier réellement joint à ce tour — sinon la citation est retirée.
+ *
+ * Elle ne remplit rien toute seule : l'écran l'affiche à côté du champ avec un
+ * bouton. Un clic, un geste délibéré.
+ */
+export interface AssistantSuggestion {
+  amount: string;
+  source: string;
+}
+
 export interface AssistantQuestion {
   text: string;
   field: string;
   input: AssistantInput;
   hint: string;
   choices: string[];
+  suggestion: AssistantSuggestion | null;
 }
 
 /**
@@ -343,17 +360,28 @@ export interface AssistantStepInput {
   goal: string;
   history: AssistantTurn[];
   force_ready?: boolean;
+  /**
+   * Les pièces jointes de l'entretien — déjà dans la bibliothèque du foyer.
+   *
+   * ⚠️ Des **nombres** : les clés de `Document` sont des entiers, contrairement à
+   * presque tout le reste de l'API.
+   */
+  document_ids?: number[];
 }
+
+/** Le corps de la création : le plan relu, plus les pièces à relier. */
+export type AssistantCreateInput = AssistantPlan & { document_ids: number[] };
 
 export async function assistantStep(input: AssistantStepInput): Promise<AssistantStep> {
   const { data } = await api.post('/projects/projects/assistant-step/', {
     ...input,
     force_ready: input.force_ready ?? false,
+    document_ids: input.document_ids ?? [],
   });
   return data as AssistantStep;
 }
 
-export async function assistantCreate(plan: AssistantPlan): Promise<ProjectListItem> {
+export async function assistantCreate(plan: AssistantCreateInput): Promise<ProjectListItem> {
   const { data } = await api.post('/projects/projects/assistant-create/', plan);
   return data as ProjectListItem;
 }

@@ -200,6 +200,8 @@ def create_project_from_plan(household, user, *, plan: dict):
                     zone_ids=task.get("zone_ids") or None,
                 )
 
+        _link_documents(project, user, plan.get("document_ids") or [])
+
         for index, note in enumerate(plan.get("notes") or []):
             with _numbered("notes", index):
                 create_note_interaction(
@@ -215,6 +217,39 @@ def create_project_from_plan(household, user, *, plan: dict):
                 )
 
     return project
+
+
+def _link_documents(project, user, document_ids) -> None:
+    """Relie au chantier les pièces jointes pendant l'entretien.
+
+    Deux choses à ne pas défaire :
+
+    - **On ne relie que ce que ce lecteur peut lire** (`core.visibility`), et
+      seulement dans son foyer. Un id venu du client ne se croit pas, et un
+      document privé d'un autre membre ne doit pas se retrouver accroché à un
+      chantier que tout le foyer voit — ce serait la fuite de #667 par une autre
+      porte.
+    - **Un id inconnu est ignoré, il ne fait pas échouer la création.** Le
+      document a pu être supprimé entre l'entretien et la validation, et perdre
+      le chantier entier pour une pièce jointe manquante serait disproportionné :
+      les pièces sont un complément, pas la matière du plan.
+
+    La liaison passe par `documents.services.link_document` (upsert idempotent),
+    jamais par un `DocumentLink.objects.create` — c'est lui le seul point
+    d'écriture sur cette table.
+    """
+    if not document_ids:
+        return
+
+    from core.visibility import visible_to_creator
+    from documents.models import Document
+    from documents.services import link_document
+
+    readable = visible_to_creator(
+        Document.objects.filter(household=project.household, id__in=document_ids), user
+    )
+    for document in readable:
+        link_document(entity=project, document=document, user=user, role="supporting")
 
 
 def _resolve_or_create_budget(household, user, spec):

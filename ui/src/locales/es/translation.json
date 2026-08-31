@@ -3061,12 +3061,14 @@
       "answer": {
         "amountPlaceholder": "Un importe",
         "otherPlaceholder": "…u otra cosa",
-        "textPlaceholder": "Tu respuesta"
+        "textPlaceholder": "Tu respuesta",
+        "useAmount": "{{source}} indica {{amount}} — usar este importe"
       },
       "budgetLabel": "Sobre de gastos",
       "budgetNone": "Sin sobre",
       "budgetNew": "Crear «{{name}}»",
-      "budgetHint": "Clasifica los gastos del proyecto, no los limita — el límite sigue siendo el presupuesto previsto de arriba."
+      "budgetHint": "Clasifica los gastos del proyecto, no los limita — el límite sigue siendo el presupuesto previsto de arriba.",
+      "attach": "Adjuntar un presupuesto o una foto"
     }
   },
   "notifications": {

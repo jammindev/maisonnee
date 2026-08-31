@@ -10,7 +10,7 @@ from .models import (
     ProjectZone,
     UserPinnedProject,
 )
-from .assistant import MAX_NOTES, MAX_QUESTIONS, MAX_TASKS
+from .assistant import MAX_DOCUMENTS, MAX_NOTES, MAX_QUESTIONS, MAX_TASKS
 from .services import project_actual_cost, project_tab_counts
 
 
@@ -334,6 +334,16 @@ class ProjectPlanSerializer(serializers.Serializer):
     notes = serializers.ListField(
         child=PlanNoteSerializer(), required=False, default=list, max_length=MAX_NOTES
     )
+    #: Les pièces jointes pendant l'entretien. Elles sont **déjà** dans la
+    #: bibliothèque du foyer — téléverser est un geste délibéré et indépendant ;
+    #: ce champ ne fait que demander de les *relier* au chantier créé.
+    #:
+    #: ⚠️ `IntegerField`, pas `UUIDField` : les clés de `Document` sont des
+    #: **entiers**, contrairement à presque tout le reste du dépôt. `TaskSerializer`
+    #: porte déjà la même remarque sur son propre `document_ids`.
+    document_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list, max_length=MAX_DOCUMENTS
+    )
 
 
 class AssistantTurnSerializer(serializers.Serializer):
@@ -368,3 +378,7 @@ class AssistantStepSerializer(serializers.Serializer):
         max_length=MAX_QUESTIONS,
     )
     force_ready = serializers.BooleanField(required=False, default=False)
+    #: Entiers — voir la remarque sur `ProjectPlanSerializer.document_ids`.
+    document_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list, max_length=MAX_DOCUMENTS
+    )

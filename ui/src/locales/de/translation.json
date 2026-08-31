@@ -3061,12 +3061,14 @@
       "answer": {
         "amountPlaceholder": "Ein Betrag",
         "otherPlaceholder": "…oder etwas anderes",
-        "textPlaceholder": "Deine Antwort"
+        "textPlaceholder": "Deine Antwort",
+        "useAmount": "{{source}} nennt {{amount}} — diesen Betrag übernehmen"
       },
       "budgetLabel": "Ausgaben-Umschlag",
       "budgetNone": "Kein Umschlag",
       "budgetNew": "„{{name}}“ erstellen",
-      "budgetHint": "Er ordnet die Ausgaben des Projekts ein, begrenzt sie aber nicht — die Obergrenze bleibt das geplante Budget oben."
+      "budgetHint": "Er ordnet die Ausgaben des Projekts ein, begrenzt sie aber nicht — die Obergrenze bleibt das geplante Budget oben.",
+      "attach": "Angebot oder Foto anhängen"
     }
   },
   "notifications": {

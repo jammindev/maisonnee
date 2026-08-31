@@ -3061,12 +3061,14 @@
       "answer": {
         "amountPlaceholder": "Un montant",
         "otherPlaceholder": "…ou autre chose",
-        "textPlaceholder": "Ta réponse"
+        "textPlaceholder": "Ta réponse",
+        "useAmount": "{{source}} indique {{amount}} — utiliser ce montant"
       },
       "budgetLabel": "Enveloppe des dépenses",
       "budgetNone": "Aucune enveloppe",
       "budgetNew": "Créer « {{name}} »",
-      "budgetHint": "Elle classe les dépenses du chantier, elle ne les plafonne pas — le plafond reste le budget prévisionnel ci-dessus."
+      "budgetHint": "Elle classe les dépenses du chantier, elle ne les plafonne pas — le plafond reste le budget prévisionnel ci-dessus.",
+      "attach": "Joindre un devis ou une photo"
     }
   },
   "notifications": {

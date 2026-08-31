@@ -17,7 +17,7 @@ import {
   registerProjectPurchase,
   assistantStep,
   assistantCreate,
-  type AssistantPlan,
+  type AssistantCreateInput,
   type AssistantStepInput,
   type ProjectListItem,
   type ProjectInteractionItem,
@@ -188,7 +188,7 @@ export function useCreateProjectFromPlan() {
   const invalidate = useInvalidate();
   const { t } = useTranslation();
   return useMutation({
-    mutationFn: (plan: AssistantPlan) => assistantCreate(plan),
+    mutationFn: (plan: AssistantCreateInput) => assistantCreate(plan),
     onSuccess: () => {
       invalidate('projects', 'tasks', 'interactions');
       toast({ description: t('projects.assistant.created'), variant: 'success' });

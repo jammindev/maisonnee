@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sparkles } from 'lucide-react';
+import { Paperclip, Sparkles } from 'lucide-react';
 import { Button } from '@/design-system/button';
 import { Textarea } from '@/design-system/textarea';
 import { FormField } from '@/design-system/form-field';
@@ -35,6 +35,8 @@ interface Props {
   asked: number;
   remaining: number;
   error: string | null;
+  attachments: { id: number; name: string }[];
+  onAttach: () => void;
 }
 
 export default function ProjectAssistantInterview({
@@ -51,6 +53,8 @@ export default function ProjectAssistantInterview({
   asked,
   remaining,
   error,
+  attachments,
+  onAttach,
 }: Props) {
   const { t } = useTranslation();
   const started = history.length > 0 || question !== null;
@@ -140,6 +144,32 @@ export default function ProjectAssistantInterview({
               />
             </div>
           ) : null}
+
+          {/* Joindre n'est proposé qu'une fois l'entretien commencé, et c'est le
+              cœur du lot : dans la version rollbackée, le téléversement était un
+              passage **obligé placé avant** la génération — ce qui rendait la
+              feature lourde avant même la première question. On parle d'abord, on
+              joint si on a quelque chose. */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={onAttach}
+              disabled={isPending}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <Paperclip className="h-4 w-4" aria-hidden />
+              {t('projects.assistant.attach')}
+            </button>
+            {attachments.length > 0 ? (
+              <ul className="space-y-1">
+                {attachments.map((file) => (
+                  <li key={file.id} className="text-xs text-muted-foreground">
+                    {file.name}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <Footer>
             <Button type="button" variant="outline" onClick={onFinish} disabled={isPending}>
