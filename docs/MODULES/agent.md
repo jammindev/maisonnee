@@ -123,16 +123,22 @@ pas la liste — ajouter un module = ~5 lignes, zéro touche à `apps/agent/`.
 
 ### Confidentialité — le foyer dit à qui, le lecteur dit à quoi
 
-`SearchableSpec.visibility` est un `(queryset, viewer) -> queryset` optionnel,
-déclaré par l'app propriétaire au même titre que `related`. `None` (le cas
-courant) = tout membre du foyer voit toute ligne.
+La restriction n'est **pas** déclarée sur le `SearchableSpec` — elle l'a été, et
+c'était le mauvais endroit : lier la confidentialité d'un modèle au fait qu'il soit
+*cherchable* laissait sans domicile les modèles privatisables non searchables
+(`briefings.Briefing`), et ne pourra jamais voir une confidentialité **héritée**,
+qui ne porte aucun champ. Elle vit donc dans `core.visibility.REGISTRY`, alimenté
+depuis l'`apps.py` de chaque app propriétaire — même modèle que `agent.searchables`
+lui-même.
 
-- **Le point d'application est unique** : `retrieval.apply_visibility` pour les
+- **Le point d'application est unique** : `core.visibility.narrow_for` pour les
   chemins qui tiennent un queryset (lexical, sémantique, `resolve_entity`,
   `list_entities`), `retrieval.filter_visible_instances` pour ceux qui tiennent
   déjà des objets (`get_related`, contexte ancré — groupé par type, donc une
   requête par type présent, jamais une par item). Les deux lisent le **même**
-  `spec.visibility` : pas de seconde règle qui pourrait dériver.
+  registre : pas de seconde règle qui pourrait dériver. Et c'est le même
+  `narrow_for` que les viewsets REST appellent, donc l'assistant et la liste ne
+  peuvent pas se contredire.
 - **`viewer` omis est fermé, pas ouvert.** `core.visibility.visible_to_creator`
   ne renvoie alors que le public. Un appelant qui oublie le lecteur montre moins,
   jamais plus — un manque se remarque, une fuite non.
@@ -155,11 +161,13 @@ Régression : `agent/tests/test_private_visibility.py`, dont le test de forme
 `TestTheTwoDoorsAgree` compare l'ensemble trouvable par l'assistant à celui que la
 liste affiche, plutôt que d'énumérer des portes — la prochaine ne serait pas couverte.
 
-> ⚠️ **`Task.is_private` et `Interaction.is_private` ne sont appliqués nulle part**,
-> ni par leur propre API ni par le retrieval. L'assistant n'y est donc pas plus
-> permissif que l'app — il n'y a pas de contournement, il y a une règle absente.
-> Traité à part : l'y appliquer par le seul `visibility` rendrait l'assistant plus
-> strict que la liste, soit le même désaccord à deux voix, dans l'autre sens.
+> ✅ **Corrigé (parcours 33, lot 1).** `Task.is_private` et `Interaction.is_private`
+> n'étaient appliqués nulle part côté retrieval : la tâche privée d'un membre était
+> absente de sa propre liste et citable par l'assistant de tous les autres. Les deux
+> modèles sont désormais déclarés au registre, donc bornés sur les sept portes à la
+> fois. Seule exception, écrite comme une décision : une `Interaction(type="expense")`
+> n'est jamais cachée — sept agrégations la lisent, et son secret portera sur le
+> contenu (masquage, lot 4) et non sur l'existence.
 
 ### Gating par modules du foyer (parcours 15)
 

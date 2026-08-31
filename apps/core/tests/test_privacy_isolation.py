@@ -31,15 +31,18 @@ Les quatre parties sont nécessaires
    C'est le seul contrôle qui compare le *code* à ce que l'API sert vraiment.
 3. **Complétude** — un modèle portant le drapeau doit être couvert ou exempté.
    Sans elle, les deux premières restent vertes en ignorant le nouveau venu.
-4. **La porte de l'agent** — un modèle privatisable *et* searchable doit
-   déclarer sa ``visibility`` de ``SearchableSpec``. Les trois premières parties
-   ne regardent que les listes REST, et **une liste bornée ne borne pas ⌘K** :
-   la palette du haut, ``search_household``, ``get_entity``, ``get_related``,
-   ``list_entities`` et le contexte ancré lisent le registre de retrieval, pas la
-   vue. Un seul spec sur quatre le déclarait (``documents``), si bien que la
-   tâche privée d'un membre était absente de sa liste et citable par l'assistant
-   — deux définitions de ce qu'un lecteur a le droit de voir, et c'est la plus
-   permissive qui gagnait en silence.
+4. **La déclaration** — un modèle privatisable est enregistré dans
+   ``core.visibility.REGISTRY``. Les trois premières parties ne regardent que les
+   listes REST, et **une liste bornée ne borne pas ⌘K** : la palette du haut,
+   ``search_household``, ``get_entity``, ``get_related``, ``list_entities`` et le
+   contexte ancré ne passent jamais par le viewset. Une seule déclaration les
+   ferme toutes, parce que toutes appellent ``narrow_for``. La restriction a
+   d'abord vécu sur le ``SearchableSpec`` de l'agent, et un seul spec sur quatre
+   la déclarait — la tâche privée d'un membre était donc absente de sa liste et
+   citable par l'assistant. Elle a été déplacée vers le registre parce que lier
+   la confidentialité au fait d'être *cherchable* laissait deux trous : un modèle
+   privatisable non searchable (``Briefing``) n'avait nulle part où se déclarer,
+   et une confidentialité **héritée** ne porte aucun champ à inspecter.
 
 Limite connue : la partie n°1 lit ``filterset_fields``, pas un éventuel
 ``filterset_class`` (le dépôt n'en utilise aucun). Le jour où l'un apparaît, il
@@ -341,39 +344,71 @@ class TestEveryPrivatisableModelIsAccountedFor:
 # ── 4. La porte de l'agent : une liste bornée ne borne pas ⌘K ────────────────
 
 
-class TestEveryPrivatisableModelGuardsTheAgentDoor:
-    """Un modèle privatisable et searchable déclare sa ``visibility`` de spec.
+class TestEveryPrivatisableModelDeclaresItsRestriction:
+    """Un modèle privatisable est déclaré dans ``core.visibility.REGISTRY``.
 
     Les trois parties du dessus ne regardent que les listes REST. Or six autres
-    portes lisent le **registre de retrieval** et jamais la vue : la palette ⌘K,
-    le tool ``search_household``, ``get_entity``, ``get_related``,
-    ``list_entities`` et le contexte d'une conversation ancrée. Un seul spec sur
-    quatre déclarait la restriction (``documents``), si bien qu'une tâche privée
-    était absente de sa propre liste et citable par l'assistant de n'importe quel
-    autre membre.
+    portes ne passent **jamais** par le viewset : la palette ⌘K, le tool
+    ``search_household``, ``get_entity``, ``get_related``, ``list_entities`` et le
+    contexte d'une conversation ancrée. Une seule déclaration les ferme toutes,
+    parce que toutes appellent ``core.visibility.narrow_for``.
 
-    Le contrôle est structurel et pas comportemental, exprès : énumérer les six
-    portes dans un test finirait par en oublier une septième, alors que la
-    déclaration, elle, les ferme toutes d'un coup. C'est le même choix que pour
+    Le contrôle est structurel et pas comportemental, exprès : énumérer les sept
+    portes dans un test finirait par en oublier une huitième, alors que la
+    déclaration, elle, les ferme d'un coup. Même choix que pour
     ``banking.compliance.REGISTRY`` — on vérifie que le mécanisme est *déclaré*,
     pas qu'il a été recopié partout.
+
+    ⚠️ Ce contrôle lit le **registre**, et surtout pas le champ ``is_private``.
+    C'est ce qui lui permettra de voir arriver une confidentialité **héritée** —
+    un tracker dont le projet est privé n'a aucun drapeau à inspecter, donc un
+    catalogue adossé au ``grep`` du champ ne pourrait structurellement pas le
+    couvrir.
     """
 
-    def test_no_searchable_model_carries_the_flag_without_declaring_visibility(self):
-        from agent import searchables
+    def test_no_model_carries_the_flag_without_being_registered(self):
+        from core import visibility
 
-        privatisable = {model for model in _models_with_is_private()}
+        registered = {spec.model for spec in visibility.REGISTRY}
         offenders = [
-            spec.entity_type
-            for spec in searchables.REGISTRY
-            if spec.model in privatisable and spec.visibility is None
+            _label(model)
+            for model in _models_with_is_private()
+            if model not in registered
         ]
         assert not offenders, (
-            "Ces entités portent is_private et sont searchables sans déclarer "
-            f"`visibility=` : {sorted(offenders)}. Le queryset de leur vue a beau "
-            "borner, la palette du haut, l'agent et le contexte ancré lisent le "
-            "registre de retrieval — pas la vue. Déclarer la restriction dans le "
-            "SearchableSpec, depuis l'app propriétaire "
-            "(core.visibility.visible_to_creator pour le couple is_private / "
+            f"Ces modèles portent is_private sans être déclarés au registre de "
+            f"visibilité : {sorted(offenders)}. Le queryset de leur vue a beau "
+            "borner, les six portes de l'agent lisent core.visibility.REGISTRY — "
+            "pas la vue. Enregistrer un PrivacySpec depuis l'apps.py de l'app "
+            "propriétaire (narrow=visible_to_creator pour le couple is_private / "
             "created_by)."
         )
+
+    def test_the_registry_has_no_stale_entry(self):
+        """Une déclaration qui ne restreint plus rien a l'air de faire autorité."""
+        from core import visibility
+
+        privatisable = set(_models_with_is_private())
+        inherited = set()  # confidentialité héritée : lot 4 (Tracker, Project…)
+        stale = [
+            _label(spec.model)
+            for spec in visibility.REGISTRY
+            if spec.model not in privatisable | inherited
+        ]
+        assert not stale, (
+            f"Ces specs ne correspondent plus à un modèle privatisable : {sorted(stale)}. "
+            "Une déclaration périmée a l'air de faire autorité en étant fausse."
+        )
+
+    def test_narrow_for_leaves_an_unregistered_model_alone(self, db):
+        """« Pas de spec » veut dire « le scope foyer est toute la règle ».
+
+        Le défaut ouvert est ici volontaire et borné par le test du dessus : sans
+        lui, ``narrow_for`` planterait sur les dizaines d'entités qui n'ont aucune
+        confidentialité, et on serait revenu à une liste de cas dans l'appelant.
+        """
+        from core import visibility
+        from zones.models import Zone
+
+        base = Zone.objects.all()
+        assert visibility.narrow_for(base, None).query.__str__() == base.query.__str__()

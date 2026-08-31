@@ -82,7 +82,10 @@ export interface DocumentItem {
   ocr_text?: string | null;
   metadata?: Record<string, unknown> | null;
   created_at: string;
+  created_by?: number | null;
   created_by_name?: string | null;
+  /** Privé = seul le déposant le voit. Seul lui peut aussi le changer. */
+  is_private?: boolean;
   interaction?: string | null;
   interaction_subject?: string | null;
   qualification: DocumentQualification;

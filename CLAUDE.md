@@ -394,22 +394,28 @@ dans le chemin par défaut — le scope foyer vient du manager, la confidentiali
 `apps/core/tests/test_privacy_isolation.py` (quatre parties) et
 `apps/agent/tests/test_private_visibility.py`.
 
-- **Une seule définition, `core.visibility.visible_to_creator`.** Elle est
-  **fail-closed** : `viewer=None` ne voit que le public, donc un chemin qui oublie
-  le lecteur **sous-affiche** au lieu de fuiter. Elle filtre sur `created_by`,
-  **jamais sur le rôle** — un owner de foyer n'est pas un lecteur privilégié du
-  privé des autres. Ne jamais réécrire le `Q` au point d'appel : deux définitions
-  d'une visibilité ne divergent pas symétriquement, c'est toujours la plus
-  permissive qui gagne, et elle gagne en silence.
+- **Une déclaration par modèle, un seul point d'application.** Le modèle
+  s'enregistre depuis son `apps.py` — `core.visibility.register(PrivacySpec(model=…,
+  narrow=…))` — et **toutes** les portes appellent `core.visibility.narrow_for`.
+  L'implémentation du couple `is_private` / `created_by` est
+  `visible_to_creator`, **fail-closed** (`viewer=None` ne voit que le public, donc
+  un chemin qui oublie le lecteur **sous-affiche** au lieu de fuiter) et adossée à
+  `created_by`, **jamais au rôle** — un owner de foyer n'est pas un lecteur
+  privilégié du privé des autres. Ne jamais réécrire le `Q` au point d'appel : il
+  y en a eu quatre exemplaires, et deux définitions d'une visibilité ne divergent
+  pas symétriquement — c'est toujours la plus permissive qui gagne, en silence.
 - **⚠️ Il y a sept portes, pas une.** La liste REST du viewset, **plus** la palette
   ⌘K, `search_household`, `get_entity`, `get_related`, `list_entities` et le
   contexte d'une conversation ancrée — les six dernières ne passent jamais par le
-  viewset, elles lisent `agent.searchables`. **Un queryset borné ne borne pas ⌘K.**
-  Un modèle privatisable déclare donc `visibility=` sur son `SearchableSpec`, depuis
-  son app ; déclarer une fois ferme tout. La tâche privée d'un membre a vécu absente
-  de sa propre liste et citable par l'assistant de tous les autres, parce que le
-  correctif précédent n'avait traité que les documents — **un garde-fou écrit pour
-  un cas passe pour un garde-fou général**, et personne ne relit son périmètre.
+  viewset. **Un queryset borné ne borne pas ⌘K.** Déclarer une fois au registre
+  ferme les sept d'un coup. La tâche privée d'un membre a vécu absente de sa propre
+  liste et citable par l'assistant de tous les autres, parce que le correctif
+  précédent n'avait traité que les documents — **un garde-fou écrit pour un cas
+  passe pour un garde-fou général**, et personne ne relit son périmètre.
+  ⚠️ La déclaration n'a **pas** sa place sur le `SearchableSpec` : elle y a vécu, et
+  lier la confidentialité au fait d'être *cherchable* laisse sans domicile un modèle
+  privatisable non searchable (`Briefing`) et ne peut structurellement pas voir une
+  confidentialité **héritée**, qui ne porte aucun champ à inspecter.
 - **Le filtre vit dans `get_queryset`, jamais dans une permission objet.** Une
   permission ne se prononce que sur un objet **déjà chargé** : elle protège le
   détail et laisse passer la liste, qui est justement là où on lit les secrets des
@@ -430,9 +436,10 @@ dans le chemin par défaut — le scope foyer vient du manager, la confidentiali
   s'applique pas, et il faut savoir dire pourquoi : sur un foyer de deux personnes,
   un marqueur anonyme **désigne son auteur**.
 - **Le catalogue ne peut pas prendre de retard.** Un modèle portant le drapeau est
-  couvert par un test ou exempté **par écrit**, et s'il est searchable il déclare
-  aussi sa restriction de spec. Même règle que `banking.compliance.REGISTRY` :
-  ajouter un mécanisme, c'est ajouter sa déclaration.
+  couvert par un test ou exempté **par écrit**, *et* enregistré au registre. Même
+  règle que `banking.compliance.REGISTRY` : ajouter un mécanisme, c'est ajouter sa
+  déclaration. Le contrôle lit le **registre** et surtout pas le champ, faute de
+  quoi il ne verrait jamais arriver une confidentialité héritée.
 
 **Pourquoi un test et pas une relecture :** le défaut est invisible deux fois. En
 revue, un `get_queryset()` qui oublie la clause ressemble trait pour trait à celui

@@ -74,17 +74,16 @@ def project_tab_counts(project, viewer=None) -> dict[str, int]:
     """
     from django.contrib.contenttypes.models import ContentType
 
-    from core.visibility import visible_to_creator
+    from core.visibility import narrow_for
     from documents.models import Document, DocumentLink
     from interactions.models import Interaction
-    from interactions.visibility import visible_interactions
     from tasks.models import Task
     from trackers.models import Tracker
 
     from .models import Project
 
     project_ct = ContentType.objects.get_for_model(Project)
-    interactions = visible_interactions(
+    interactions = narrow_for(
         Interaction.objects.filter(
             source_content_type=project_ct, source_object_id=project.id
         ),
@@ -97,11 +96,11 @@ def project_tab_counts(project, viewer=None) -> dict[str, int]:
     links = DocumentLink.objects.filter(
         content_type=project_ct,
         object_id=project.id,
-        document__in=visible_to_creator(Document.objects.all(), viewer),
+        document__in=narrow_for(Document.objects.all(), viewer),
     )
 
     return {
-        "tasks": visible_to_creator(Task.objects.filter(project=project), viewer).count(),
+        "tasks": narrow_for(Task.objects.filter(project=project), viewer).count(),
         "trackers": Tracker.objects.filter(project=project, is_active=True).count(),
         "notes": interactions.filter(type="note").count(),
         "expenses": interactions.filter(type="expense").count(),

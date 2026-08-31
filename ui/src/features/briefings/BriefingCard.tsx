@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Clock, Eye, History, Lock, Pencil, Power, Trash2, Users } from 'lucide-react';
+
+import PrivateBadge from '@/components/PrivateBadge';
+import { Clock, Eye, History, Pencil, Power, Trash2, Users } from 'lucide-react';
 import { Card, CardTitle } from '@/design-system/card';
 import { Badge } from '@/design-system/badge';
 import { Button } from '@/design-system/button';
@@ -43,14 +45,14 @@ export default function BriefingCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle>{briefing.title}</CardTitle>
-            <Badge variant="secondary" className="gap-1">
-              {briefing.is_private ? (
-                <Lock className="h-3 w-3" />
-              ) : (
-                <Users className="h-3 w-3" />
-              )}
-              {briefing.is_private ? t('briefings.visibility.private') : t('briefings.visibility.shared')}
-            </Badge>
+            {briefing.is_private ? (
+              <PrivateBadge />
+            ) : (
+              <Badge variant="secondary" className="gap-1">
+                <Users className="h-3 w-3" aria-hidden="true" />
+                {t('privacy.shared')}
+              </Badge>
+            )}
           </div>
 
           <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{briefing.prompt}</p>

@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader';
 import { Button } from '@/design-system/button';
 import { Input } from '@/design-system/input';
 import { Textarea } from '@/design-system/textarea';
+import { VisibilityField } from '@/design-system/visibility-field';
 import { fetchContacts, type Contact } from '@/lib/api/contacts';
 import { fetchStructures, type Structure } from '@/lib/api/structures';
 import { fetchEquipmentList, type EquipmentListItem } from '@/lib/api/equipment';
@@ -71,6 +72,7 @@ export default function InteractionNewPage() {
   const [occurredTime, setOccurredTime] = React.useState(nowTimeInput);
   const [description, setDescription] = React.useState('');
   const [tagsInput, setTagsInput] = React.useState('');
+  const [isPrivate, setIsPrivate] = React.useState(false);
   const [zoneId, setZoneId] = React.useState(paramZoneId);
   const { data: zones = [] } = useZones();
   const [contactId, setContactId] = React.useState('');
@@ -140,6 +142,7 @@ export default function InteractionNewPage() {
         occurred_at: occurredAt.toISOString(),
         zone_ids: [zoneId],
         tags_input: tags,
+        is_private: isPrivate,
         ...(paramProjectId
           ? { source_type: 'projects.project', source_id: paramProjectId }
           : {}),
@@ -371,6 +374,11 @@ export default function InteractionNewPage() {
           />
           <p className="text-xs text-muted-foreground">{t('interactions.tags_input_help')}</p>
         </div>
+
+        {/* Visibilité — le drapeau existait sur le modèle et dans l'API depuis
+            l'origine, mais aucun écran ne permettait de le poser : une note ne
+            pouvait être marquée privée que par un appel direct à l'API. */}
+        <VisibilityField id="interaction-private" value={isPrivate} onChange={setIsPrivate} />
 
         {/* Error */}
         {formError ? (

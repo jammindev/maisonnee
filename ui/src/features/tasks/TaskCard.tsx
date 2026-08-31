@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CloudSun, FileText, Link, Lock, Paperclip, Pencil, Trash2 } from 'lucide-react';
+
+import PrivateBadge from '@/components/PrivateBadge';
+import { CloudSun, FileText, Link, Paperclip, Pencil, Trash2 } from 'lucide-react';
 import { Card } from '@/design-system/card';
 import { useAuth } from '@/lib/auth/useAuth';
 import { appLocale } from '@/lib/format';
@@ -120,9 +122,7 @@ export default function TaskCard({
             {isHighPriority && !isDone && (
               <span className="mt-0.5 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-red-500 ring-2 ring-red-200" title={t('tasks.priorityHigh')} />
             )}
-            {task.is_private && (
-              <Lock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50" />
-            )}
+            {task.is_private && <PrivateBadge variant="icon" className="mt-0.5" />}
             {task.needs_dry_weather && !isDone && (
               <span className="mt-0.5 flex-shrink-0" title={t('tasks.weather.needsDryWeatherBadge')}>
                 <CloudSun className="h-3.5 w-3.5 text-primary" aria-label={t('tasks.weather.needsDryWeatherBadge')} />

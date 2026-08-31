@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import { Button } from '@/design-system/button';
 import { Input } from '@/design-system/input';
 import { Textarea } from '@/design-system/textarea';
+import { VisibilityField } from '@/design-system/visibility-field';
 import { fetchContacts, type Contact } from '@/lib/api/contacts';
 import { fetchStructures, type Structure } from '@/lib/api/structures';
 import { fetchEquipmentList, type EquipmentListItem } from '@/lib/api/equipment';
@@ -56,6 +57,7 @@ export default function InteractionEditPage() {
   const [occurredTime, setOccurredTime] = React.useState('12:00');
   const [description, setDescription] = React.useState('');
   const [tagsInput, setTagsInput] = React.useState('');
+  const [isPrivate, setIsPrivate] = React.useState(false);
   const [zoneId, setZoneId] = React.useState('');
   const [contactId, setContactId] = React.useState('');
   const [structureId, setStructureId] = React.useState('');
@@ -95,6 +97,7 @@ export default function InteractionEditPage() {
     setContactId(interaction.contacts?.[0]?.id ?? '');
     setStructureId(interaction.structures?.[0]?.id ?? '');
     setEquipmentId(interaction.equipments?.[0]?.id ?? '');
+    setIsPrivate(interaction.is_private ?? false);
     setInitialised(true);
   }, [interaction, initialised]);
 
@@ -161,6 +164,7 @@ export default function InteractionEditPage() {
           occurred_at: occurredAt.toISOString(),
           zone_ids: zoneId ? [zoneId] : [],
           tags_input: tags,
+          is_private: isPrivate,
           contact_ids: contactId ? [contactId] : [],
           structure_ids: structureId ? [structureId] : [],
           equipment_ids: equipmentId ? [equipmentId] : [],
@@ -430,6 +434,8 @@ export default function InteractionEditPage() {
           />
           <p className="text-xs text-muted-foreground">{t('interactions.tags_input_help')}</p>
         </div>
+
+        <VisibilityField id="interaction-edit-private" value={isPrivate} onChange={setIsPrivate} />
 
         {/* Error */}
         {formError ? (

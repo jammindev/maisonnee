@@ -1,11 +1,14 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { useAuth } from '@/lib/auth/useAuth';
 import { SheetDialog } from '@/design-system/sheet-dialog';
 import { Input } from '@/design-system/input';
 import { Textarea } from '@/design-system/textarea';
 import { Select } from '@/design-system/select';
 import { Button } from '@/design-system/button';
 import { FormField } from '@/design-system/form-field';
+import { VisibilityField } from '@/design-system/visibility-field';
 import { DOCUMENT_TYPES, type DocumentItem } from '@/lib/api/documents';
 import { useUpdateDocument } from './hooks';
 
@@ -24,10 +27,17 @@ export default function DocumentEditDialog({
 }: DocumentEditDialogProps) {
   const { t } = useTranslation();
   const updateDocument = useUpdateDocument();
+  const { user } = useAuth();
+
+  // `AuthUser.id` est une string, `Document.created_by` un number : comparer les
+  // deux sans conversion renvoie toujours false, et le contrôle serait grisé
+  // pour tout le monde, déposant compris.
+  const canChangeVisibility = Boolean(doc && user && String(doc.created_by) === user.id);
 
   const [name, setName] = React.useState('');
   const [type, setType] = React.useState('document');
   const [notes, setNotes] = React.useState('');
+  const [isPrivate, setIsPrivate] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -35,6 +45,7 @@ export default function DocumentEditDialog({
     setName(doc.name || '');
     setType(doc.type || 'document');
     setNotes(doc.notes || '');
+    setIsPrivate(doc.is_private ?? false);
     setError(null);
   }, [open, doc?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -43,7 +54,10 @@ export default function DocumentEditDialog({
     if (!doc) return;
     setError(null);
     updateDocument.mutate(
-      { id: doc.id, payload: { name, type, notes } },
+      {
+        id: doc.id,
+        payload: { name, type, notes, ...(canChangeVisibility ? { is_private: isPrivate } : {}) },
+      },
       {
         onSuccess: () => {
           onOpenChange(false);
@@ -99,6 +113,20 @@ export default function DocumentEditDialog({
               placeholder={t('documents.fieldNotesPlaceholder')}
             />
           </FormField>
+
+          {/* Visibilité — le drapeau vivait dans l'API et dans les sept portes de
+              lecture sans qu'aucun écran ne permette de le poser. Seul le déposant
+              peut le changer (`documents/views.py::perform_update`) : l'écran le
+              dit, au lieu de laisser le serveur refuser après coup. */}
+          <VisibilityField
+            id="edit-doc-private"
+            value={isPrivate}
+            onChange={setIsPrivate}
+            disabled={!canChangeVisibility}
+          />
+          {!canChangeVisibility ? (
+            <p className="text-xs text-muted-foreground">{t('privacy.documentOwnerOnly')}</p>
+          ) : null}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button

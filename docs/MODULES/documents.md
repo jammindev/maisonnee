@@ -60,9 +60,11 @@
 
 Permissions : `IsHouseholdMember` partout. Seul le `created_by` peut changer `is_private` (`views.py:140-144`).
 
-**`is_private` vaut aussi pour l'assistant.** La règle est déclarée une fois, sur le
-`SearchableSpec` de `apps/documents/apps.py` (`visibility=core.visibility.visible_to_creator`),
-et le retrieval de l'agent l'applique sur tous ses chemins. Elle ne vivait auparavant
+**`is_private` vaut aussi pour l'assistant.** La règle est déclarée une fois, au
+registre de `apps/documents/apps.py`
+(`PrivacySpec(model=Document, narrow=visible_to_creator)`), et **toutes** les portes
+de lecture l'appliquent par `core.visibility.narrow_for` — la liste REST comme les
+six chemins du retrieval. Elle ne vivait auparavant
 que dans `get_documents_queryset_for_request` : l'`ocr_text` d'une pièce privée était
 donc cherchable et citable par tout le foyer via la palette, `search_household`,
 `get_entity`, et le contexte ancré d'un projet auquel la pièce était attachée. Détail

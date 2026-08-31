@@ -5,7 +5,7 @@ import { SheetDialog } from '@/design-system/sheet-dialog';
 import { Input } from '@/design-system/input';
 import { Textarea } from '@/design-system/textarea';
 import { Button } from '@/design-system/button';
-import { Select } from '@/design-system/select';
+import { VisibilityField } from '@/design-system/visibility-field';
 import { FilterPill } from '@/design-system/filter-pill';
 import { FormField } from '@/design-system/form-field';
 import type { Briefing } from '@/lib/api/briefings';
@@ -173,17 +173,11 @@ export default function BriefingDialog({ open, onOpenChange, existing }: Props) 
           <p className="text-xs text-muted-foreground">{t('briefings.schedule.everyDayHint')}</p>
         </FormField>
 
-        <FormField label={t('briefings.fields.visibility')} htmlFor="briefing-visibility">
-          <Select
-            id="briefing-visibility"
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value as 'shared' | 'private')}
-            options={[
-              { value: 'shared', label: t('briefings.visibility.sharedHint') },
-              { value: 'private', label: t('briefings.visibility.privateHint') },
-            ]}
-          />
-        </FormField>
+        <VisibilityField
+          id="briefing-visibility"
+          value={visibility === 'private'}
+          onChange={(isPrivate) => setVisibility(isPrivate ? 'private' : 'shared')}
+        />
 
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
