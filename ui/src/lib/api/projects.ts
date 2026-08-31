@@ -253,3 +253,92 @@ export async function updateProjectGroup(id: string, input: Partial<ProjectGroup
 export async function deleteProjectGroup(id: string): Promise<void> {
   await api.delete(`/projects/project-groups/${id}/`);
 }
+
+// --- Création assistée (parcours 32) ----------------------------------------
+//
+// Deux endpoints, et la séparation est structurelle : `assistantStep` parle au
+// modèle et n'écrit rien, `assistantCreate` écrit et ne parle à aucun modèle.
+// « Rien n'est écrit avant relecture » ne dépend donc pas d'une branche de code.
+
+/**
+ * Comment rendre le champ de réponse. Le modèle choisit *quelle* question poser ;
+ * le serveur choisit *comment* on y répond — un montant atterrit dans un
+ * `DecimalInput`, jamais dans du texte libre qu'il faudrait relire comme un
+ * nombre.
+ */
+export type AssistantInput = 'text' | 'amount' | 'date' | 'zones' | 'choice';
+
+export interface AssistantQuestion {
+  text: string;
+  field: string;
+  input: AssistantInput;
+  hint: string;
+  choices: string[];
+}
+
+/**
+ * Un item du plan. `zone_ids` porte des ids **résolus par le serveur** au tour
+ * d'entretien ; `unresolved_zone_names` dit ce qu'il n'a pas trouvé, pour que
+ * l'écran le montre au lieu de l'absorber.
+ */
+export interface PlanItem {
+  subject: string;
+  content: string;
+  priority?: number | null;
+  due_date?: string | null;
+  zone_ids: string[];
+  unresolved_zone_names: string[];
+}
+
+export interface PlanProject {
+  title: string;
+  description: string;
+  type: ProjectType | null;
+  priority: number | null;
+  planned_budget: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  tags: string[];
+  zone_ids: string[];
+  unresolved_zone_names: string[];
+}
+
+export interface AssistantPlan {
+  project: PlanProject;
+  tasks: PlanItem[];
+  notes: PlanItem[];
+}
+
+export interface AssistantTurn {
+  question: string;
+  field: string;
+  answer: string;
+}
+
+export interface AssistantStep {
+  state: 'asking' | 'ready';
+  asked: number;
+  /** Combien de questions peuvent encore être posées, celle-ci comprise. */
+  remaining: number;
+  question?: AssistantQuestion;
+  plan?: AssistantPlan;
+}
+
+export interface AssistantStepInput {
+  goal: string;
+  history: AssistantTurn[];
+  force_ready?: boolean;
+}
+
+export async function assistantStep(input: AssistantStepInput): Promise<AssistantStep> {
+  const { data } = await api.post('/projects/projects/assistant-step/', {
+    ...input,
+    force_ready: input.force_ready ?? false,
+  });
+  return data as AssistantStep;
+}
+
+export async function assistantCreate(plan: AssistantPlan): Promise<ProjectListItem> {
+  const { data } = await api.post('/projects/projects/assistant-create/', plan);
+  return data as ProjectListItem;
+}

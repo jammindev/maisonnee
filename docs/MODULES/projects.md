@@ -63,6 +63,13 @@ plan (projet + tâches + notes). Ce que tout changement doit préserver :
   version dégradée** : le formulaire de création est le repli, et il existe déjà.
 - **Throttle dédié `project_assistant` (60/h)** : un entretien vaut jusqu'à sept
   appels au fournisseur. Le plancher global compte des requêtes, pas des euros.
+- **Le rayon d'action d'une consigne injectée dans `goal` est borné, et c'est ce
+  qui rend le texte libre acceptable.** Le contexte envoyé au modèle ne contient
+  que les noms de zones du foyer — que l'appelant voit déjà — et la sortie n'est
+  jamais écrite : au pire, un membre se fabrique à lui-même un plan absurde,
+  qu'il lit avant de le créer. Cette phrase cesse d'être vraie le jour où le
+  contexte s'enrichit (documents du lot 5, budgets du lot 4) ou où un plan se
+  crée sans relecture : il faudra alors reposer la question.
 
 ### L'écriture du plan (lot 2)
 
@@ -116,13 +123,50 @@ plan (projet + tâches + notes). Ce que tout changement doit préserver :
   modèle : entre la génération et cet appel, l'humain a réécrit des titres et
   décoché des lignes. Les plafonds de `ProjectPlanSerializer` sont ceux du moteur
   (`MAX_TASKS` / `MAX_NOTES`) pour que le refus soit le même des deux côtés.
-- **Le rayon d'action d'une consigne injectée dans `goal` est borné, et c'est ce
-  qui rend le texte libre acceptable.** Le contexte envoyé au modèle ne contient
-  que les noms de zones du foyer — que l'appelant voit déjà — et la sortie n'est
-  jamais écrite : au pire, un membre se fabrique à lui-même un plan absurde,
-  qu'il lit avant de le créer. Cette phrase cesse d'être vraie le jour où le
-  contexte s'enrichit (documents du lot 5, budgets du lot 4) ou où un plan se
-  crée sans relecture : il faudra alors reposer la question.
+
+### L'écran (lot 3)
+
+`ui/src/features/projects/assistant/` — `ProjectAssistantDialog` (SheetDialog, deux
+phases), `ProjectAssistantInterview`, `AnswerField`, `ProjectAssistantReview`, et
+`plan.ts` pour la construction du payload. Régressions :
+`plan.test.ts` et `e2e/project-assistant.spec.ts`.
+
+- **Le bouton est absent sans la capacité, jamais grisé** (`useCapability('project_assistant')`).
+  Un bouton grisé promet et dément dans le même geste — et il n'y a rien à
+  promettre : le formulaire de création est juste à côté et **est** le repli.
+- **La bascule vers la relecture est décidée par le serveur** (`state === 'ready'`),
+  jamais par un compte de questions tenu dans le composant. Deux compteurs pour la
+  même chose finissent par se contredire, et c'est celui du serveur qui décide.
+- **`AnswerField` ne pose aucune taille de police.** `tailwind-merge` fait gagner
+  le dernier de la même famille : un `text-sm` ajouté pour tasser un champ
+  effacerait le `text-base` du design-system et ferait zoomer iOS à l'ouverture du
+  dialogue. La décision vit dans `fieldBase`, à un seul endroit.
+- **Une question d'argent se répond dans un `DecimalInput`, et le champ arrive
+  vide.** La fourchette de prix est rendue *à côté* (`question.hint`) — jamais
+  dedans. Vérifié en vrai navigateur, parce qu'un champ vide contre un champ
+  pré-rempli est une propriété du rendu et pas de la réponse HTTP.
+- **Un tour raté ne perd rien** : l'historique n'est commité qu'au succès de
+  l'appel. La version naïve (écrire l'historique avant) affichait la question
+  **deux fois** quand le modèle répondait de travers — une fois dans l'historique,
+  une fois comme question courante. Et « J'ai assez dit » emporte la réponse en
+  cours si elle a été tapée : sans ça, quelqu'un qui saisit son budget puis conclut
+  voit son montant disparaître.
+- **La mutation de création déclare trois racines** :
+  `invalidate('projects', 'tasks', 'interactions')`. Un `invalidate('projects')`
+  seul ne suffirait pas — le graphe de `lib/invalidate.ts` dit « le projet *lit*
+  les tâches et les interactions », donc écrire `projects` périme le dashboard mais
+  **pas** la liste des tâches ni le journal. Or cette écriture y crée vraiment des
+  lignes.
+- **Le brouillon ne partage aucune référence avec la réponse en cache** (`toDraft`
+  copie) : sinon éditer la relecture muterait la réponse de React Query, et
+  rouvrir le dialogue afficherait les corrections comme si elles venaient du
+  modèle.
+- **`unresolved_zone_names` est de l'affichage et ne repart jamais** dans la
+  requête. C'est le pendant écran de la règle du lot 2 : ce que le serveur n'a pas
+  su rattacher se **dit**, une fois, en tête de relecture.
+- **Le test e2e stube l'entretien et pas la création.** « Le fournisseur répond-il »
+  n'a rien à faire dans un test ; « le plan relu arrive-t-il en base, et seulement
+  ce qui était coché » ne se prouve qu'en traversant le vrai backend.
 
 ## Notes / décisions produit
 

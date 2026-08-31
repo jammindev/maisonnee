@@ -1537,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Das Projekt anlegen",
-            "body": "Geben Sie ihm einen Namen, eine Beschreibung und ein geplantes Budget."
+            "body": "Zwei Wege. „Mit dem Assistenten erstellen“ stellt einige Fragen und schlägt dann das Projekt mit Aufgaben und Notizen vor — nichts wird erstellt, bevor du es geprüft und Unnötiges abgewählt hast. Oder füll das Formular selbst aus, wenn du schon weißt, was du willst."
           },
           "plan": {
             "title": "Aufgaben und Notizen bündeln",
@@ -3051,6 +3051,36 @@
     },
     "summary": {
       "budget": "Budget"
+    },
+    "assistant": {
+      "new": "Mit dem Assistenten erstellen",
+      "title": "Projekt mit dem Assistenten erstellen",
+      "reviewTitle": "Vor dem Erstellen prüfen",
+      "goalLabel": "Was möchtest du machen?",
+      "goalPlaceholder": "Ich möchte die Terrasse erneuern…",
+      "intro": "Ein Satz genügt. Der Assistent stellt dann einige Fragen und schlägt das Projekt mit Aufgaben und Notizen vor. Nichts wird erstellt, bevor du es geprüft hast.",
+      "start": "Starten",
+      "next": "Antworten",
+      "enough": "Das reicht, generiere",
+      "thinking": "Der Assistent denkt nach…",
+      "back": "Zurück zum Gespräch",
+      "create": "Projekt erstellen",
+      "progress": "Frage {{asked}} von {{total}}",
+      "noAnswer": "(keine Antwort)",
+      "failed": "Der Assistent konnte nicht antworten. Formuliere neu oder fahre fort.",
+      "created": "Projekt erstellt.",
+      "reviewIntro": "Hake ab, was du nicht brauchst, und korrigiere, was falsch ist. Noch existiert nichts.",
+      "unresolvedRooms": "In deinem Zuhause nicht gefundene Räume, den Räumen des Projekts zugeordnet: {{rooms}}",
+      "chooseType": "Typ wählen",
+      "tasksHeading": "Aufgaben ({{count}})",
+      "notesHeading": "Notizen ({{count}})",
+      "noTasks": "Keine Aufgabe vorgeschlagen.",
+      "noNotes": "Keine Notiz vorgeschlagen.",
+      "answer": {
+        "amountPlaceholder": "Ein Betrag",
+        "otherPlaceholder": "…oder etwas anderes",
+        "textPlaceholder": "Deine Antwort"
+      }
     }
   },
   "notifications": {

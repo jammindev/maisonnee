@@ -1537,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Crear el proyecto",
-            "body": "Dale un nombre, una descripción y un presupuesto previsto."
+            "body": "Dos puertas. «Crear con el asistente» te hace algunas preguntas y luego propone el proyecto con sus tareas y notas — no se crea nada hasta que lo hayas revisado y desmarcado lo que no sirva. O rellena el formulario tú mismo, si ya lo tienes claro."
           },
           "plan": {
             "title": "Reunir tareas y notas",
@@ -3051,6 +3051,36 @@
     },
     "summary": {
       "budget": "Presupuesto"
+    },
+    "assistant": {
+      "new": "Crear con el asistente",
+      "title": "Crear un proyecto con el asistente",
+      "reviewTitle": "Revisar antes de crear",
+      "goalLabel": "¿Qué quieres hacer?",
+      "goalPlaceholder": "Quiero rehacer la terraza…",
+      "intro": "Basta con una frase. El asistente hace luego algunas preguntas y propone el proyecto con sus tareas y notas. No se crea nada hasta que lo hayas revisado.",
+      "start": "Empezar",
+      "next": "Responder",
+      "enough": "Ya he dicho bastante, genera",
+      "thinking": "El asistente está pensando…",
+      "back": "Volver a la entrevista",
+      "create": "Crear el proyecto",
+      "progress": "pregunta {{asked}} de {{total}}",
+      "noAnswer": "(sin respuesta)",
+      "failed": "El asistente no ha podido responder. Reformula o continúa.",
+      "created": "Proyecto creado.",
+      "reviewIntro": "Desmarca lo que no sirva y corrige lo que esté mal. Todavía no existe nada.",
+      "unresolvedRooms": "Estancias que no existen en tu hogar, asignadas a las del proyecto: {{rooms}}",
+      "chooseType": "Elegir un tipo",
+      "tasksHeading": "Tareas ({{count}})",
+      "notesHeading": "Notas ({{count}})",
+      "noTasks": "Ninguna tarea propuesta.",
+      "noNotes": "Ninguna nota propuesta.",
+      "answer": {
+        "amountPlaceholder": "Un importe",
+        "otherPlaceholder": "…u otra cosa",
+        "textPlaceholder": "Tu respuesta"
+      }
     }
   },
   "notifications": {

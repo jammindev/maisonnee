@@ -1537,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Create the project",
-            "body": "Give it a name, a description and a planned budget."
+            "body": "Two doors. “Create with the assistant” asks you a few questions, then proposes the project with its tasks and notes — nothing is created until you have reviewed it and unchecked what you do not need. Or fill in the form yourself, if you already know."
           },
           "plan": {
             "title": "Gather tasks and notes",
@@ -3051,6 +3051,36 @@
     },
     "summary": {
       "budget": "Budget"
+    },
+    "assistant": {
+      "new": "Create with the assistant",
+      "title": "Create a project with the assistant",
+      "reviewTitle": "Review before creating",
+      "goalLabel": "What do you want to do?",
+      "goalPlaceholder": "I want to redo the deck…",
+      "intro": "One sentence is enough. The assistant then asks a few questions and proposes the project with its tasks and notes. Nothing is created until you have reviewed it.",
+      "start": "Start",
+      "next": "Answer",
+      "enough": "That’s enough, generate",
+      "thinking": "The assistant is thinking…",
+      "back": "Back to the interview",
+      "create": "Create the project",
+      "progress": "question {{asked}} of {{total}}",
+      "noAnswer": "(no answer)",
+      "failed": "The assistant could not answer. Rephrase, or move on.",
+      "created": "Project created.",
+      "reviewIntro": "Uncheck what you do not need, fix what is wrong. Nothing exists yet.",
+      "unresolvedRooms": "Rooms not found in your home, filed under the project’s own: {{rooms}}",
+      "chooseType": "Choose a type",
+      "tasksHeading": "Tasks ({{count}})",
+      "notesHeading": "Notes ({{count}})",
+      "noTasks": "No task proposed.",
+      "noNotes": "No note proposed.",
+      "answer": {
+        "amountPlaceholder": "An amount",
+        "otherPlaceholder": "…or something else",
+        "textPlaceholder": "Your answer"
+      }
     }
   },
   "notifications": {
