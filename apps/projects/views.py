@@ -1,7 +1,8 @@
 import logging
 
 from django.utils import timezone
-from rest_framework import status as drf_status, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, status as drf_status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
@@ -62,14 +63,30 @@ class ProjectViewSet(DocumentLinkActionsMixin, _HouseholdScopedViewSet):
     serializer_class = ProjectSerializer
     document_link_role = "supporting"
 
+    # ⚠️ Sans ces trois backends, DRF **ignore en silence** tout paramètre de
+    # requête que personne ne réclame. La barre de filtres de `/app/projects`
+    # envoyait `search`, `type` et `ordering` depuis toujours : le serveur n'en
+    # lisait aucun et renvoyait la liste entière, donc chercher ne faisait rien
+    # et ne disait rien. `status` et `zone` marchaient pour la seule raison
+    # qu'ils étaient câblés à la main juste en dessous — ce qui **ressemblait à
+    # une liste filtrable** en revue comme à l'écran. Tous les autres viewsets
+    # de liste du dépôt déclarent déjà ces backends (#688).
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ["status", "type", "project_group"]
+    search_fields = ["title", "description"]
+    ordering_fields = ["title", "priority", "start_date", "due_date", "created_at", "updated_at"]
+    # Le modèle n'a pas de `Meta.ordering` : sans défaut ici, Postgres rend un
+    # ordre arbitraire et la liste peut se réordonner d'un rechargement à l'autre.
+    ordering = ["-updated_at"]
+
     def get_queryset(self):
         queryset = super().get_queryset()
+        # `zone` reste manuel : la relation passe par la table de liaison
+        # `project_zones` et impose un `distinct()`, que `filterset_fields` ne
+        # sait pas exprimer sous ce nom de paramètre.
         zone_id = self.request.query_params.get('zone', '').strip()
         if zone_id:
             queryset = queryset.filter(project_zones__zone_id=zone_id).distinct()
-        status = self.request.query_params.get('status', '').strip()
-        if status:
-            queryset = queryset.filter(status=status)
         return annotate_actual_cost(queryset)
 
     def perform_create(self, serializer):

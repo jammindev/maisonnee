@@ -426,3 +426,112 @@ class TestProjectDocumentLinks:
         response = owner_client.post(url, {"document_id": str(document.id)}, format="json")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestTheListHonoursWhatTheFilterBarSends:
+    """La barre de filtres de `/app/projects` envoie `search`, `status` et `type`.
+
+    Le viewset ne déclarait aucun `filter_backends` : DRF ignore silencieusement
+    tout paramètre qu'aucun backend ne réclame, donc taper dans la recherche
+    renvoyait la liste entière — sans un mot, ni côté serveur ni à l'écran.
+    """
+
+    @pytest.fixture
+    def three_projects(self, household, owner):
+        cuisine = Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Rénovation cuisine',
+            description='Changer les plans de travail',
+            type=Project.Type.RENOVATION,
+            status=Project.Status.ACTIVE,
+        )
+        toiture = Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Réparer la toiture',
+            description='Tuiles cassées côté nord',
+            type=Project.Type.REPAIR,
+            status=Project.Status.ACTIVE,
+        )
+        vacances = Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Vacances été',
+            description='',
+            type=Project.Type.VACATION,
+            status=Project.Status.ACTIVE,
+        )
+        return cuisine, toiture, vacances
+
+    def _titles(self, response):
+        data = response.data
+        results = data['results'] if isinstance(data, dict) else data
+        return [r['title'] for r in results]
+
+    def test_search_matches_the_title(self, owner_client, three_projects):
+        response = owner_client.get(reverse('project-list'), {'search': 'toiture'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Réparer la toiture']
+
+    def test_search_matches_the_description(self, owner_client, three_projects):
+        response = owner_client.get(reverse('project-list'), {'search': 'plans de travail'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Rénovation cuisine']
+
+    def test_a_search_that_matches_nothing_returns_nothing(self, owner_client, three_projects):
+        """Le symptôme rapporté : la recherche renvoyait la liste entière."""
+        response = owner_client.get(reverse('project-list'), {'search': 'zzzzz-introuvable'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == []
+
+    def test_the_type_filter_narrows_the_list(self, owner_client, three_projects):
+        response = owner_client.get(reverse('project-list'), {'type': 'vacation'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Vacances été']
+
+    def test_search_and_status_compose(self, owner_client, household, owner, three_projects):
+        Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Rénovation cuisine (annulée)',
+            type=Project.Type.RENOVATION,
+            status=Project.Status.CANCELLED,
+        )
+
+        response = owner_client.get(
+            reverse('project-list'), {'search': 'cuisine', 'status': 'active'}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Rénovation cuisine']
+
+    def test_search_stays_inside_the_household(self, owner_client, three_projects):
+        """Un backend de recherche ne doit pas élargir la portée du queryset."""
+        other = _household("Autre foyer")
+        Project.objects.create(
+            household=other,
+            title='Rénovation cuisine du voisin',
+            type=Project.Type.RENOVATION,
+            status=Project.Status.ACTIVE,
+        )
+
+        response = owner_client.get(reverse('project-list'), {'search': 'cuisine'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Rénovation cuisine']
+
+    def test_the_list_has_a_stable_order(self, owner_client, three_projects):
+        """Sans `Meta.ordering` ni OrderingFilter, Postgres rendait un ordre arbitraire."""
+        cuisine, toiture, vacances = three_projects
+        toiture.title = 'Réparer la toiture (mis à jour)'
+        toiture.save(update_fields=['title', 'updated_at'])
+
+        response = owner_client.get(reverse('project-list'), {'ordering': '-updated_at'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response)[0] == 'Réparer la toiture (mis à jour)'
