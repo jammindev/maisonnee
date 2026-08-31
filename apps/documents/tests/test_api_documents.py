@@ -237,6 +237,71 @@ class TestDocumentsApi:
         assert document.ocr_text == ""
         assert document.metadata["ocr_method"] == "skipped"
 
+    @override_settings(MEDIA_ROOT='/tmp/house-test-media-nul')
+    def test_upload_succeeds_when_extracted_text_carries_nul_bytes(
+        self, monkeypatch, owner_client, household
+    ):
+        """Un PDF de formulaire signé rend du texte contenant des NUL (0x00).
+
+        Postgres refuse 0x00 dans une colonne texte : le `save` qui persiste le
+        résultat de l'extraction levait `ValueError`, *après* le commit du
+        document. L'envoi répondait 500 sur une opération réussie, et
+        l'utilisateur réessayait — donc créait un doublon.
+        """
+        # On mocke la couche *sous* `extract_text`, pour que l'enveloppe qui
+        # nettoie soit bien celle que la vue traverse : c'est la chaîne réelle
+        # qui doit tenir, pas le seul helper pris à part.
+        monkeypatch.setattr(
+            "documents.extraction._extract_text",
+            lambda doc, **kw: ("ATTESTATION\x00 SUR L'HONNEUR\x00", "pypdf"),
+        )
+
+        upload = SimpleUploadedFile("attestation.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        response = owner_client.post(
+            reverse("document-upload"),
+            {"file": upload, "name": "Attestation", "type": "document"},
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        document = Document.objects.get(pk=response.data["document"]["id"])
+        assert "\x00" not in document.ocr_text
+        assert document.ocr_text == "ATTESTATION SUR L'HONNEUR"
+        assert document.metadata["ocr_method"] == "pypdf"
+
+    @override_settings(MEDIA_ROOT='/tmp/house-test-media-persist-boom')
+    def test_upload_succeeds_when_persisting_the_extraction_throws(
+        self, monkeypatch, owner_client, household
+    ):
+        """Le document est déjà commité : rien de ce qui suit ne doit répondre 500.
+
+        L'extraction est un bonus. Faire échouer la requête sur son écriture
+        annonce un échec sur une opération réussie — et pousse à réessayer.
+        """
+        monkeypatch.setattr(
+            "documents.views.extract_text",
+            lambda doc, **kw: ("texte", "pypdf"),
+        )
+
+        original_save = Document.save
+
+        def boom(self, *args, **kwargs):
+            if kwargs.get("update_fields"):
+                raise RuntimeError("postgres said no")
+            return original_save(self, *args, **kwargs)
+
+        monkeypatch.setattr(Document, "save", boom)
+
+        upload = SimpleUploadedFile("doc.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        response = owner_client.post(
+            reverse("document-upload"),
+            {"file": upload, "name": "Doc", "type": "document"},
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Document.objects.filter(pk=response.data["document"]["id"]).exists()
+
     @override_settings(MEDIA_ROOT='/tmp/house-test-media-photo-skip')
     def test_upload_photo_type_skips_extraction(self, monkeypatch, owner_client, household):
         """type='photo' goes to the photo grid; running Vision OCR on it is wasted."""
