@@ -15,7 +15,7 @@ import { useDelayedLoading } from '@/lib/useDelayedLoading';
 import { useDeleteWithUndo } from '@/lib/useDeleteWithUndo';
 import { useSessionState } from '@/lib/useSessionState';
 import { isoDate, periodLabel, periodRange, shiftAnchor } from '@/lib/period';
-import type { WaterChartGranularity, WaterReading } from '@/lib/api/water';
+import type { WaterGranularity, WaterReading } from '@/lib/api/water';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useDeleteWaterReading,
@@ -29,7 +29,7 @@ import { buildIntervals, coveredDays, qualifyBuckets, type WaterInterval } from 
 // Le jour est parti avec #682 : les relevés sont manuels et espacés, cette
 // résolution n'existe pas dans les données (l'heure était partie pour la même
 // raison dès la création du module).
-const GRANULARITIES: WaterChartGranularity[] = ['month', 'year'];
+const GRANULARITIES: WaterGranularity[] = ['month', 'year'];
 
 function formatM3(litres: number): string {
   return (litres / 1000).toLocaleString(appLocale(), { maximumFractionDigits: 3 });
@@ -117,13 +117,13 @@ export default function WaterPage() {
   const qc = useQueryClient();
 
   const { data: readings = [], isLoading: readingsLoading } = useWaterReadings();
-  const [storedGranularity, setGranularity] = useSessionState<WaterChartGranularity>(
+  const [storedGranularity, setGranularity] = useSessionState<WaterGranularity>(
     'water.granularity',
     'month',
   );
   // Une session ouverte avant #682 peut encore porter 'day' : on la ramène au
   // mois plutôt que de demander au serveur un découpage que l'écran n'offre plus.
-  const granularity: WaterChartGranularity = GRANULARITIES.includes(storedGranularity)
+  const granularity: WaterGranularity = GRANULARITIES.includes(storedGranularity)
     ? storedGranularity
     : 'month';
   const [anchorIso, setAnchorIso] = useSessionState<string>('water.anchor', isoDate(new Date()));

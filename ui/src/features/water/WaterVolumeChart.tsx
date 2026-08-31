@@ -16,7 +16,7 @@ import {
 import type { ConsumptionChartOverlay } from '@/components/charts/ConsumptionBarChart';
 import { formatLabel, formatTick } from '@/components/charts/ticks';
 import { appLocale } from '@/lib/format';
-import type { WaterChartGranularity } from '@/lib/api/water';
+import type { WaterGranularity } from '@/lib/api/water';
 
 import type { QualifiedBucket } from './waterSeries';
 
@@ -47,7 +47,7 @@ const WATER_COLOR = 'hsl(var(--chart-2))';
 
 interface WaterVolumeChartProps {
   buckets: QualifiedBucket[];
-  granularity: WaterChartGranularity;
+  granularity: WaterGranularity;
   /** Température sur l'axe de droite, quand le foyer l'a activée. */
   overlay?: ConsumptionChartOverlay;
 }
