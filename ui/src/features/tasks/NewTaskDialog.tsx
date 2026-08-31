@@ -8,6 +8,7 @@ import { Select } from '@/design-system/select';
 import { Button } from '@/design-system/button';
 import { FormField } from '@/design-system/form-field';
 import { CheckboxField } from '@/design-system/checkbox-field';
+import { VisibilityField } from '@/design-system/visibility-field';
 import ZonePicker from '@/features/zones/ZonePicker';
 import { useDisabledModules } from '@/lib/modules';
 import { fetchProjects } from '@/lib/api/projects';
@@ -328,11 +329,15 @@ export default function NewTaskDialog({
           </FormField>
 
           {householdMembers.length > 1 && (
-            <CheckboxField
+            <VisibilityField
               id="task-private"
-              label={t('tasks.fieldPrivate')}
-              checked={isPrivate}
+              value={isPrivate}
+              // Le retrait de l'assignation est fait **ici et maintenant**, pas
+              // laissé au serveur : la contrainte DB `tasks_private_not_assigned`
+              // existe, et un 500 sur un choix de visibilité est un mauvais
+              // professeur. L'écran dit ce qu'il va faire, puis le fait.
               onChange={(val) => { setIsPrivate(val); if (val) setAssignedToId(''); }}
+              privateHint={t('privacy.taskUnassigns')}
             />
           )}
 

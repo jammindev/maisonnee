@@ -210,14 +210,16 @@ Le scoping tient la frontière **entre** foyers ; `is_private` en trace une seco
 - Elle est **invisible deux fois** : en revue, la clause manquante ne se distingue
   pas de la clause présente ; à l'usage, il faut deux comptes dans le même foyer
   pour la voir manquer. C'est la définition d'un contrôle à écrire.
-- **Une seule définition** — `core.visibility.visible_to_creator`, fail-closed,
-  adossée à `created_by` et jamais au rôle.
-- **Sept portes.** La liste REST, plus les six chemins de `agent.searchables`
-  (palette ⌘K, `search_household`, `get_entity`, `get_related`, `list_entities`,
-  contexte ancré). Un modèle privatisable et searchable déclare `visibility=` sur
-  son spec ; sans quoi il est **absent de sa propre liste et citable par
-  l'assistant** — c'est exactement ce qui a vécu en production pour les tâches et
-  les notes, le correctif précédent n'ayant traité que les documents.
+- **Une déclaration par modèle** (`core.visibility.REGISTRY`, alimenté depuis
+  l'`apps.py` de l'app propriétaire) et **un seul point d'application**
+  (`narrow_for`). L'implémentation du couple standard est `visible_to_creator`,
+  fail-closed, adossée à `created_by` et jamais au rôle.
+- **Sept portes.** La liste REST, plus les six chemins de retrieval (palette ⌘K,
+  `search_household`, `get_entity`, `get_related`, `list_entities`, contexte
+  ancré) — qui ne passent **jamais** par le viewset. Un modèle non déclaré est donc
+  **absent de sa propre liste et citable par l'assistant** : c'est exactement ce qui
+  a vécu en production pour les tâches et les notes, le correctif précédent n'ayant
+  traité que les documents.
 - **Masquer ≠ cacher.** Ce qui alimente un compteur partagé se masque (l'argent),
   ce qui n'alimente rien se cache. Une dépense privée reste dans toutes les
   agrégations : la cacher d'une liste sans la retirer des totaux donnerait deux
@@ -226,7 +228,8 @@ Le scoping tient la frontière **entre** foyers ; `is_private` en trace une seco
   en servant deux trahit l'existence de l'item privé à qui sait soustraire.
 
 Régressions : `apps/core/tests/test_privacy_isolation.py` (quatre parties, dont la
-n°4 qui refuse un spec privatisable sans restriction déclarée) et
+n°4 qui refuse un modèle privatisable non enregistré — et qui lit le registre, pas
+le champ, pour pouvoir voir arriver une confidentialité héritée) et
 `apps/agent/tests/test_private_visibility.py`.
 
 ### Les liaisons polymorphes

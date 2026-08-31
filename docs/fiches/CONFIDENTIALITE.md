@@ -81,10 +81,22 @@ cette famille avait fermé les portes 2, 3 et 4 **pour les documents seulement**
 tâche privée d'Alice restait absente de sa propre liste et citable par l'assistant de
 Bob par les sept portes.
 
-D'où la forme retenue : `SearchableSpec.visibility` est un **callable déclaré par
-l'app propriétaire**, et le retrieval l'applique sur tous ses chemins. Déclarer une
-fois ferme tout. La couche de retrieval ne doit jamais grossir d'une liste de quels
-modèles se trouvent être privés — sinon la prochaine porte s'ouvre.
+D'où la forme retenue : **un registre**, `core.visibility.REGISTRY`, alimenté par
+l'`apps.py` de chaque app propriétaire, et **un point d'application unique**,
+`narrow_for`, que les sept portes appellent. Déclarer une fois ferme tout. Aucune
+porte ne doit jamais grossir d'une liste de quels modèles se trouvent être privés —
+sinon la prochaine s'ouvre.
+
+La restriction a d'abord vécu sur le `SearchableSpec` de l'agent, et ce n'était pas
+le bon endroit. Lier la confidentialité d'un modèle au fait qu'il soit *cherchable*
+laisse deux trous, et le second est structurel :
+
+1. un modèle privatisable **non searchable** (`briefings.Briefing`) n'a nulle part
+   où se déclarer — son viewset réécrit donc la règle à la main, quatrième
+   exemplaire du même `Q` ;
+2. une confidentialité **héritée** — un tracker qui n'a pas de drapeau mais dont le
+   projet en a un — ne porte **aucun champ**. Ni un `SearchableSpec` ni un `grep`
+   de `is_private` ne peuvent la voir arriver. Un registre, si.
 
 ### 3.4 Le garde-fou est structurel, pas comportemental
 
@@ -96,8 +108,9 @@ nécessaires :
 2. **un second membre ne voit pas l'item privé du premier** — le seul contrôle qui
    compare le code à ce que l'API sert vraiment ;
 3. **complétude** : un modèle portant le drapeau est couvert ou exempté par écrit ;
-4. **la porte de l'agent** : un modèle privatisable et searchable déclare sa
-   `visibility` de spec.
+4. **la déclaration** : un modèle privatisable est enregistré au registre. Le
+   contrôle lit le **registre** et surtout pas le champ — c'est ce qui lui permet
+   de couvrir la confidentialité héritée le jour où elle arrive.
 
 La n°4 est structurelle exprès. Énumérer les sept portes dans un test finirait par en
 oublier une huitième, alors que la déclaration les ferme toutes. On vérifie que le
@@ -119,6 +132,19 @@ cache.
 
 L'exception vit dans `interactions.visibility`, importée par la vue **et** par le
 spec — un seul endroit décide, deux portes obéissent.
+
+### 3.6 Le registre borne des querysets, il ne masque rien
+
+`PrivacySpec` ne porte **pas** de champ `mode: hide | redact`, et l'omission est
+délibérée : remplacer le sujet d'une dépense par « Dépense privée » est une
+décision de **sérialisation**, pas de requêtage. La ranger dans un module qui borne
+des querysets ferait croire qu'elle y est appliquée alors que rien ne la lirait —
+un champ mort dans un module de visibilité est pire qu'une ligne à écrire plus tard.
+
+Le masquage vivra donc dans le serializer, avec son producteur et son consommateur
+dans le même diff. Ce que le registre exprime déjà de l'argent, il l'exprime au bon
+niveau : le `narrow` d'`interactions` **ne cache pas** les dépenses, et c'est tout
+ce qu'une couche de requête a à en dire.
 
 ## 4. Pourquoi cette implémentation
 

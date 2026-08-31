@@ -29,6 +29,8 @@ from django.contrib.postgres.search import (
 from django.db.models import F, Value
 from pgvector.django import CosineDistance
 
+from core import visibility
+
 from .modules import disabled_modules_for, spec_disabled
 from .searchables import REGISTRY, SearchableSpec, find_spec, resolve_label
 
@@ -84,16 +86,20 @@ def _spec_url(spec: SearchableSpec, instance) -> str:
 
 
 def apply_visibility(spec: SearchableSpec, queryset, viewer):
-    """Narrow ``queryset`` to what ``viewer`` may read, per the spec's declaration.
+    """Narrow ``queryset`` to what ``viewer`` may read.
 
-    The single application point of ``SearchableSpec.visibility``. Every read path
-    of the agent funnels through here, so a spec that declares a rule is filtered
-    on all of them at once — the alternative (a filter added at each call site) is
-    exactly how the household scope stayed right while privacy was forgotten.
+    Thin wrapper over ``core.visibility.narrow_for``, kept because it reads better
+    at the agent's call sites and because it names the guarantee: **every read path
+    of the agent funnels through here**. The alternative — a filter added at each
+    call site — is exactly how the household scope stayed right while privacy was
+    forgotten.
+
+    ``spec`` is no longer consulted for the rule itself: it lives in
+    ``core.visibility.REGISTRY``, declared by the app that owns the model. Which
+    means a model becomes privacy-guarded on all six agent doors *and* on its own
+    REST list from a single declaration.
     """
-    if spec.visibility is None:
-        return queryset
-    return spec.visibility(queryset, viewer)
+    return visibility.narrow_for(queryset, viewer)
 
 
 def filter_visible_instances(pairs: list[tuple[SearchableSpec, Any]], viewer):
@@ -104,10 +110,10 @@ def filter_visible_instances(pairs: list[tuple[SearchableSpec, Any]], viewer):
     whole neighbourhood through ``spec.related``). Grouped by entity type so the
     cost is one query per *type* present, never one per item.
 
-    Both helpers read the same ``spec.visibility``: there is no second rule here
-    that could drift from the queryset one.
+    Both helpers read the same registry: there is no second rule here that could
+    drift from the queryset one.
     """
-    guarded = [(spec, obj) for spec, obj in pairs if spec.visibility is not None]
+    guarded = [(spec, obj) for spec, obj in pairs if visibility.has_spec(spec.model)]
     if not guarded:
         return list(pairs)
 
@@ -125,7 +131,7 @@ def filter_visible_instances(pairs: list[tuple[SearchableSpec, Any]], viewer):
     return [
         (spec, obj)
         for spec, obj in pairs
-        if spec.visibility is None or obj.pk in allowed[spec.entity_type]
+        if not visibility.has_spec(spec.model) or obj.pk in allowed[spec.entity_type]
     ]
 
 
@@ -280,7 +286,7 @@ def search(
     ``viewer`` is the user asking. The household says *whose* data this is; the
     viewer says *which of it they may read* — a document one member marked private
     belongs to the household but is not theirs to see. Omitting it is fail-closed
-    (``core.visibility.visible_to_creator`` then returns public rows only), so a
+    (``core.visibility.narrow_for`` then returns public rows only), so a
     forgotten call site under-reports instead of leaking.
 
     ``hybrid`` overrides ``AGENT_HYBRID_RETRIEVAL_ENABLED`` for this call. The

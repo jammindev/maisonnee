@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
+import PrivateBadge from '@/components/PrivateBadge';
 import { useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, FileText, Lock, Pencil, Trash2 } from 'lucide-react';
+import { ExternalLink, FileText, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/design-system/button';
 import { Card, CardContent } from '@/design-system/card';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -131,9 +133,7 @@ export default function TaskDetailPage() {
                   title={t('tasks.priorityHigh')}
                 />
               )}
-              {task.is_private && (
-                <Lock className="h-4 w-4 flex-shrink-0 text-muted-foreground/60" />
-              )}
+              {task.is_private && <PrivateBadge variant="icon" className="h-4 w-4" />}
               <span>{task.subject || t('tasks.untitledTask')}</span>
             </>
           }

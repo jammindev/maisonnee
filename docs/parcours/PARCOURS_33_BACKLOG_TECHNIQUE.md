@@ -35,51 +35,87 @@ rôle : elle n'attrape pas le défaut, elle attrape la **sur-correction**.
 
 ---
 
-## Lot 2 — Le registre de visibilité ([#662](https://github.com/jammindev/maisonnee/issues/662))
+## Lot 2 — Le registre de visibilité ([#662](https://github.com/jammindev/maisonnee/issues/662)) — **livré**
 
 Zéro changement de comportement observable. C'est le socle que le lot 4 exige,
 livré à part pour que sa PR reste relisible.
 
-- `apps/core/visibility.py` — `PrivacySpec(model, narrow, mode)`, `REGISTRY`,
-  `register()`, `narrow_for(queryset, viewer)`.
-  - `narrow(queryset, viewer) -> queryset` — écrit par l'app propriétaire.
-  - `mode` : `hide` (l'item disparaît) ou `redact` (il reste, son contenu est
-    remplacé). Un seul producteur de `redact`, au lot 4 — l'introduire ici coûte un
-    champ inutilisé pendant une PR, l'introduire plus tard obligerait à rouvrir les
-    quatre `apps.py`.
-- `apps/{tasks,documents,briefings,interactions}/apps.py` — enregistrement depuis
-  `ready()`.
-- `apps/agent/searchables.py` — `SearchableSpec.visibility` délègue au registre
-  quand elle n'est pas fournie : une déclaration ferme les deux portes.
-- `core/tests/test_privacy_isolation.py` — les parties 3 et 4 lisent le **registre**
-  et non plus le champ. Motif : la cascade dérivée du lot 4 fera hériter `Tracker`
-  sans qu'il porte de drapeau, donc un catalogue adossé au `grep` ne le verrait pas.
+| Fichier | Changement |
+|---|---|
+| `apps/core/visibility.py` | `PrivacySpec(model, narrow)`, `REGISTRY`, `register()`, `find_spec`, `has_spec`, `narrow_for` — **le** point d'application |
+| `apps/{tasks,documents,briefings,interactions}/apps.py` | enregistrement depuis `ready()` ; `briefings` gagne un `ready()` qu'il n'avait pas |
+| `apps/agent/searchables.py` | le champ `visibility` **disparaît** (voir plus bas) |
+| `apps/agent/retrieval.py` | `apply_visibility` et `filter_visible_instances` lisent le registre |
+| `apps/{tasks,briefings,documents,interactions}/views.py` | les quatre `Q` écrits à la main appellent `narrow_for` |
+| `core/tests/test_privacy_isolation.py` | la partie 4 lit le **registre** et non plus le champ |
 
-**Critère principal** : aucun test existant ne change de valeur. Un refactor de
-visibilité qui déplace une frontière n'est pas un refactor.
+**Deux écarts assumés par rapport au cadrage initial, tous deux vers le plus
+strict :**
+
+1. **`SearchableSpec.visibility` est supprimé, pas rendu optionnel.** Le laisser en
+   surcharge aurait maintenu deux mécanismes pour une même règle. Surtout, le champ
+   était **mal placé** : il liait la confidentialité d'un modèle au fait d'être
+   *cherchable*, ce qui laissait `briefings.Briefing` sans domicile (son viewset
+   réécrivait donc le `Q`) et ne pourra jamais voir une confidentialité héritée, qui
+   ne porte aucun champ.
+2. **Pas de champ `mode: hide | redact`.** Le masquage est une décision de
+   **sérialisation**, pas de requêtage : le ranger dans un module qui borne des
+   querysets ferait croire qu'il y est appliqué alors que rien ne le lirait. Un champ
+   mort dans un module de visibilité coûte plus qu'une ligne à écrire au lot 4, avec
+   son producteur et son consommateur dans le même diff. Ce que la couche requête a à
+   dire de l'argent, elle le dit déjà : le `narrow` d'`interactions` ne cache pas les
+   dépenses.
+
+**Critère principal tenu** : aucun test existant ne change de valeur. Seule la
+partie 4 est réécrite — parce que son sujet, la déclaration, a changé de place.
+Suite complète : `4870 passed`.
 
 ---
 
-## Lot 3 — L'UI de la confidentialité ([#663](https://github.com/jammindev/maisonnee/issues/663))
+## Lot 3 — L'UI de la confidentialité ([#663](https://github.com/jammindev/maisonnee/issues/663)) — **livré**
 
 Le drapeau existe sur quatre modèles et n'a d'interface que sur deux, avec deux
 dessins différents.
 
-- `ui/src/design-system/visibility-field.tsx` — contrôle unique « Partagé / Privé »
-  et sa phrase d'explication. Le dessin de `BriefingDialog` gagne : un radio nomme
-  les deux états, une case à cocher n'en nomme qu'un.
-- `ui/src/components/PrivateBadge.tsx` — le badge, aujourd'hui recopié dans
-  `TaskCard`, `TaskDetailPage` et `BriefingCard`.
-- Postes : `NewTaskDialog`, `BriefingDialog` (migration), dialogue de note, panneau
-  document/photo.
-- `ui/src/locales/{en,fr,de,es}.json` — namespace `privacy.*`, **sans
-  `defaultValue`**.
-- ⚠️ `fieldBase` : pas de `text-sm` sans préfixe de variante, sinon iOS zoome à
-  l'ouverture du dialogue (`field-font-size.test.ts`).
-- ⚠️ Cocher « privé » sur une tâche assignée se refuse **avant** l'appel réseau :
-  `tasks_private_not_assigned` existe, et un 500 sur une case à cocher est un
-  mauvais professeur.
-- Tutoriel `/app/tutorial` mis à jour dans la même PR.
+| Fichier | Changement |
+|---|---|
+| `ui/src/design-system/visibility-field.tsx` | **nouveau** — deux boutons radio « Partagé / Privé », les deux états nommés |
+| `ui/src/components/PrivateBadge.tsx` | **nouveau** — un composant, deux rendus (`pill`, `icon`), **un** libellé |
+| `NewTaskDialog` | la case à cocher devient le contrôle partagé |
+| `BriefingDialog` | le menu déroulant aussi |
+| `InteractionNewPage` / `InteractionEditPage` | **première** bascule pour une note |
+| `DocumentEditDialog` | **première** bascule pour un document, grisée si on n'est pas le déposant |
+| `TaskCard`, `TaskDetailPage`, `BriefingCard` | les trois marqueurs deviennent `PrivateBadge` |
+| `ui/src/lib/api/{documents,interactions}.ts` | les types écrits à la main exposent `is_private` |
+| 4 locales | namespace `privacy.*` ; les clés mortes `tasks.fieldPrivate` et `briefings.visibility.*` supprimées |
+| `features/tutorials/content.ts` + 4 locales | une étape `privacy` sur les guides tâches, activité et documents |
+
+**Deux boutons plutôt qu'une case à cocher, et ce n'est pas cosmétique** : une case
+à cocher **ne nomme qu'un seul état**. Décochée, elle laisse deviner ce qu'elle veut
+dire — et sur un réglage dont l'erreur se paie en « tout le foyer a vu mon cadeau »,
+deviner ne suffit pas. Ce sont de vrais `<input type="radio">` dans un `<fieldset>` :
+clavier, lecteur d'écran et exclusion mutuelle viennent du navigateur.
+
+**Ce que le lot corrige au passage** : les deux marqueurs de tâche étaient des
+cadenas **nus**, sans libellé ni `aria-label` — invisibles pour un lecteur d'écran.
+La variante `icon` porte le libellé.
+
+**Régression** : `ui/src/design-system/visibility-field.test.tsx` — les deux états
+sont nommés, l'actif est reflété sur le bon bouton, l'exclusion mutuelle passe par
+un `name` partagé, et la conséquence propre à l'écran ne s'affiche que quand elle
+s'applique. ⚠️ Le test charge le **vrai** catalogue français : sans i18n,
+`t('privacy.shared')` renvoie la clé brute, et « privacy.shared » contient « priv » —
+une recherche par nom accessible trouverait les deux boutons, donc le test ne
+prouverait rien sur un composant dont c'est justement la fonction de les distinguer.
+
+**Déjà tenu, vérifié** : `tasks_private_not_assigned` est désamorcé côté client
+(choisir « privé » retire l'assignation, et le contrôle l'annonce) ; `radio` ne
+déclenche pas le zoom iOS, donc `field-font-size.test.ts` reste vert.
+
+**Hors périmètre, constaté** : `design-system/checkbox-field.tsx` code ses couleurs
+en dur (`border-slate-300`, `checked:bg-slate-800`, `dark:border-slate-600`) au lieu
+des tokens du design-system. Non corrigé ici — un correctif non demandé rend le diff
+irrelisable.
 
 ---
 

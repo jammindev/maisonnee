@@ -17,6 +17,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count
 
 from core.permissions import IsHouseholdMember
+from core.visibility import narrow_for
 from core.timezones import (
     current_month_range,
     end_of_day,
@@ -27,7 +28,6 @@ from documents.models import Document, DocumentLink
 from zones.models import Zone
 from .aggregations import UNBUDGETED, compute_expense_summary
 from .notifications import notify_note_created, retract_note_created
-from .visibility import visible_interactions
 from .models import (
     Interaction,
     InteractionZone,
@@ -161,7 +161,7 @@ class InteractionViewSet(viewsets.ModelViewSet):
         # ⚠️ L'exception ``expense`` est délibérée et documentée dans
         # ``interactions.visibility`` : l'argent se **masque** au lot 4, il ne se
         # cache pas, sous peine de donner deux définitions à sept agrégations.
-        queryset = visible_interactions(queryset, self.request.user)
+        queryset = narrow_for(queryset, self.request.user)
 
         # Exclure des types — le pendant de ``?type=``, et il doit être **serveur**.
         #

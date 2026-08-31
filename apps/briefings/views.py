@@ -1,13 +1,14 @@
 """Briefings REST API."""
 import logging
 
-from django.db.models import Q
+
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from agent.llm import LLMError, LLMTimeoutError
 from core.permissions import IsHouseholdMember
+from core.visibility import narrow_for
 
 from .conditions import evaluate_condition
 from .generation import generate_briefing_text, send_briefing_now
@@ -41,8 +42,9 @@ class BriefingViewSet(viewsets.ModelViewSet):
         )
         if self.request.household:
             qs = qs.filter(household=self.request.household)
-        # Private briefings are visible only to their creator.
-        return qs.filter(Q(is_private=False) | Q(created_by=self.request.user))
+        # Un briefing privé n'appartient qu'à qui l'a écrit — règle déclarée dans
+        # ``briefings.apps`` et appliquée ici par le point unique.
+        return narrow_for(qs, self.request.user)
 
     def perform_create(self, serializer):
         data = serializer.validated_data

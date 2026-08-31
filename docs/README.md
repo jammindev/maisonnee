@@ -51,7 +51,8 @@ Parcours 01→06 livrés. Voir `JOURNAL_PRODUIT.md` pour le détail.
 - `./parcours/PARCOURS_28_OUVRIR_MAISONNEE.md` — publier le projet en open source
   auto-hébergeable (AGPL-3.0, `docker compose up`, foyers pilotes)
 - `./fiches/AUTO_HEBERGEMENT.md` — le cours : d'un déploiement à un produit
-  installable (modèle de menace, capacités optionnelles, licence, sauvegarde)
+  installable (modèle de menace, capacités optionnelles, licence, sauvegarde),
+  suivi de ce que l'implémentation des lots 0 à 5 a appris
 - `./self-hosting/` — **en anglais**, le manuel de l'exploitant : installation,
   clés optionnelles, sauvegarde **et restauration**, mises à jour, releases,
   dépannage. `../DEPLOYMENT.md` reste le déploiement de l'auteur et le dit
