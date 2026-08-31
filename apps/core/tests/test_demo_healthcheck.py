@@ -36,9 +36,29 @@ import pytest
 import yaml
 from django.conf import settings
 
-#: Les composes qui décrivent une instance servie derrière Traefik. Un nouveau
-#: fichier de déploiement s'ajoute ici — sinon sa sonde n'est vérifiée par rien.
-COMPOSE_FILES = ("deploy/demo/docker-compose.yml",)
+#: Tous les composes qui lancent l'application. **La prod y est aussi** : elle
+#: portait déjà la bonne sonde, mais rien ne la tenait — et c'est justement parce
+#: que personne ne comparait les deux fichiers que la version fautive a pu être
+#: écrite à côté de la version juste.
+COMPOSE_FILES = (
+    "docker-compose.prod.yml",
+    "deploy/demo/docker-compose.yml",
+)
+
+#: Les composes dont le service `web` est **directement** derrière Traefik. En prod
+#: c'est `nginx` qui porte les labels et `web` qui vit derrière lui : exiger une
+#: règle Traefik sur `web` y serait faux, pas strict.
+TRAEFIK_FRONTED = ("deploy/demo/docker-compose.yml",)
+
+#: Le template d'environnement de chaque compose. Explicite, parce que le deviner
+#: « à côté du fichier » est faux : à la racine, `.env.example` est celui du **dev
+#: local** (`ALLOWED_HOSTS=127.0.0.1,localhost`, aucun `DOMAIN`) et le template de
+#: production est `.env.production.example`. Une convention devinée aurait fait
+#: échouer le test sur un fichier correct.
+ENV_EXAMPLES = {
+    "docker-compose.prod.yml": ".env.production.example",
+    "deploy/demo/docker-compose.yml": "deploy/demo/.env.example",
+}
 
 #: Les services dont la sonde interroge **l'application Django**. `db` fait un
 #: `pg_isready`, qui ne passe par aucun contrôle d'hôte : l'exiger de lui rendrait
@@ -90,7 +110,33 @@ def test_an_http_probe_presents_a_host_the_app_accepts(relative, service_name):
     )
 
 
-@pytest.mark.parametrize("relative", COMPOSE_FILES)
+def test_every_compose_probes_the_app_the_same_way():
+    """Les composes ne s'écartent pas l'un de l'autre sur la sonde.
+
+    C'est le contrôle qui aurait évité la panne, et il n'existait pas. La sonde
+    correcte vivait dans `docker-compose.prod.yml`, commentaire d'explication
+    compris ; celle de la démonstration a été **réécrite de zéro** trente lignes
+    plus loin, donc à nouveau fautive.
+
+    `CLAUDE.md` § « Chercher avant de construire » le dit déjà pour le code :
+    « en écrire une dix-septième n'est pas neutre, c'est rouvrir le bug que la
+    consolidation a fermé. » Ça vaut aussi pour une ligne de compose — et une
+    divergence entre deux fichiers de déploiement ne se voit dans aucun des deux
+    diffs, puisque chacun est cohérent tout seul.
+    """
+    probes = {
+        relative: _healthcheck_command(_compose(relative)["services"]["web"])
+        for relative in COMPOSE_FILES
+    }
+    distinct = set(probes.values())
+    assert len(distinct) == 1, (
+        "les composes sondent l'application différemment — copie la sonde de "
+        "`docker-compose.prod.yml` au lieu d'en écrire une nouvelle :\n"
+        + "\n".join(f"    {rel} :\n      {cmd}" for rel, cmd in probes.items())
+    )
+
+
+@pytest.mark.parametrize("relative", TRAEFIK_FRONTED)
 def test_the_probed_host_is_the_one_traefik_routes(relative):
     """`Host` de la sonde, règle Traefik et `ALLOWED_HOSTS` nomment la même chose.
 
@@ -121,12 +167,11 @@ def test_the_compose_declares_the_variables_its_probe_needs(relative):
     refusée — et le mode de défaillance serait identique, en plus discret.
 
     On ne peut pas lire le `.env` d'une instance depuis ici (il n'est pas versionné
-    et porte des secrets), mais on peut exiger que l'exemple livré le documente :
-    c'est lui que l'auto-hébergeur copie.
+    et porte des secrets), mais on peut exiger que le **template livré** le
+    documente : c'est lui que l'exploitant copie.
     """
-    example = Path(settings.BASE_DIR) / Path(relative).parent / ".env.example"
-    if not example.is_file():
-        pytest.skip(f"{example} absent")
+    example = Path(settings.BASE_DIR) / ENV_EXAMPLES[relative]
+    assert example.is_file(), f"{example} introuvable — la table ENV_EXAMPLES a dérivé"
     content = example.read_text(encoding="utf-8")
     for variable in ("DOMAIN", "ALLOWED_HOSTS"):
         assert re.search(rf"^{variable}=", content, re.M), (

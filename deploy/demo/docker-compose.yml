@@ -90,8 +90,21 @@ services:
     # piège est qu'un healthcheck fautif ne mord qu'à la **recréation** du
     # conteneur — il dort donc jusqu'au deploy suivant, longtemps après la revue.
     # Régression : `apps/core/tests/test_demo_healthcheck.py`.
+    #
+    # ⚠️ Et surtout : **cette sonde est celle de `docker-compose.prod.yml`, mot pour
+    # mot.** Elle y existait déjà, correcte, avec le commentaire qui explique ce
+    # piège — et elle a quand même été réécrite de zéro ici, donc à nouveau fautive.
+    # `CLAUDE.md` § « Chercher avant de construire » : le helper du dépôt avant tout
+    # le reste, parce qu'« en écrire une dix-septième n'est pas neutre, c'est rouvrir
+    # le bug que la consolidation a fermé ». Toute sonde HTTP future se **copie**
+    # depuis l'autre compose ; le test vérifie que les deux restent identiques.
+    #
+    # `X-Forwarded-Proto` est conservé par cohérence stricte avec la prod. Il n'est
+    # pas indispensable — `SECURE_REDIRECT_EXEMPT` exempte déjà `^health/?$` de la
+    # redirection HTTPS — mais deux sondes qui divergent d'un en-tête finissent par
+    # diverger d'autre chose, et c'est la seconde qu'on oublie de corriger.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/health/', headers={'Host': '${DOMAIN}'}), timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/health/', headers={'Host': '${DOMAIN}', 'X-Forwarded-Proto': 'https'}), timeout=5)"]
       interval: 10s
       timeout: 5s
       retries: 6
