@@ -133,18 +133,43 @@ cache.
 L'exception vit dans `interactions.visibility`, importée par la vue **et** par le
 spec — un seul endroit décide, deux portes obéissent.
 
-### 3.6 Le registre borne des querysets, il ne masque rien
+### 3.6 Deux questions, pas une : voir et lire
 
-`PrivacySpec` ne porte **pas** de champ `mode: hide | redact`, et l'omission est
-délibérée : remplacer le sujet d'une dépense par « Dépense privée » est une
-décision de **sérialisation**, pas de requêtage. La ranger dans un module qui borne
-des querysets ferait croire qu'elle y est appliquée alors que rien ne la lirait —
-un champ mort dans un module de visibilité est pire qu'une ligne à écrire plus tard.
+`narrow_for` répond à « cette ligne existe-t-elle pour ce lecteur ? ». `readable_for`
+répond à « peut-il lire ce qu'elle dit ? ». Pour presque toute entité les deux
+réponses coïncident, et seule la première est déclarée.
 
-Le masquage vivra donc dans le serializer, avec son producteur et son consommateur
-dans le même diff. Ce que le registre exprime déjà de l'argent, il l'exprime au bon
-niveau : le `narrow` d'`interactions` **ne cache pas** les dépenses, et c'est tout
-ce qu'une couche de requête a à en dire.
+L'argent est l'exception, et elle est du métier. Une dépense de chantier privé **doit**
+rester en liste : sept agrégations la lisent, et l'en retirer donnerait à la barre de
+budget deux valeurs selon le lecteur. Mais son sujet auto-généré est
+`"Achat — {titre du chantier}"`. Sans la seconde question, privatiser un chantier
+faisait fuiter son titre en clair à trois endroits — la liste des dépenses, la ligne
+bancaire rapprochée, et les citations de l'assistant. C'est-à-dire partout sauf là où
+on venait de le cacher.
+
+La règle qui en découle tient en une phrase : **tout ce qui rend un contenu appelle
+`readable_for` ; ce qui compte ne l'appelle jamais**, un total n'ayant pas de contenu.
+C'est aussi ce qui garde l'assistant honnête : `list_entities` somme sur tout le jeu
+filtré — le montant d'une dépense illisible entre dans le total — mais la ligne rendue
+refuse de la nommer.
+
+### 3.7 Ce que le registre déclare, et ce qu'il n'applique pas
+
+Le registre porte **deux** callables et pas un : `narrow` (quel queryset) et
+`readable` (quel contenu). Il n'en applique aucun tout seul — ce sont les portes qui
+appellent `narrow_for` et `readable_for`.
+
+Il ne porte en revanche **pas** de champ `mode: hide | redact`, et l'omission reste
+délibérée. *Quel texte* remplace le sujet d'une dépense masquée est une décision de
+**sérialisation** : elle vit dans `InteractionSerializer.REDACTED`, au singulier,
+avec le drapeau `is_redacted` qui dit au front qu'il manque quelque chose — un sujet
+vide ressemble à une saisie bâclée, pas à un secret. Le registre, lui, se contente de
+dire *qui* peut lire, ce qui est bien une question de visibilité.
+
+La distinction a tenu à l'épreuve : le lot 2 avait refusé d'ajouter un champ sans
+consommateur, et le lot 4 a ajouté `readable` **avec** son producteur et ses quatre
+consommateurs dans le même diff. C'est la règle qu'on veut garder — un champ mort
+dans un module de visibilité laisse croire qu'il est appliqué.
 
 ## 4. Pourquoi cette implémentation
 

@@ -1536,6 +1536,10 @@
           "budget": {
             "title": "Das Budget verfolgen",
             "body": "Verknüpfte Ausgaben speisen die Ist-Kosten, automatisch mit dem Budget verglichen."
+          },
+          "privacy": {
+            "title": "Ein Projekt für sich behalten",
+            "body": "„Privat“ behält das Projekt für Sie allein — samt seinen Aufgaben, Notizen, Dokumenten und Trackern. Seine Bereiche bleiben geteilt: ein Raum des Hauses ist kein Geheimnis. Seine Ausgaben zählen weiterhin in den Budgets des Haushalts, verraten aber nichts: die anderen sehen einen Betrag, nicht wofür er war. Ein Projekt, das bereits die Arbeit eines anderen Mitglieds enthält, kann nicht privat gemacht werden — die App lehnt ab, statt sie ihm stillschweigend zu entziehen."
           }
         }
       },
@@ -3006,7 +3010,8 @@
         "save": "Änderungen speichern",
         "saving": "Wird gespeichert...",
         "cancel": "Abbrechen"
-      }
+      },
+      "privateHint": "Aufgaben, Notizen, Ausgaben, Dokumente und Tracker dieses Projekts werden mit ihm privat. Seine Bereiche bleiben geteilt."
     },
     "groups": {
       "title": "Projektgruppen",
@@ -4841,6 +4846,7 @@
     "private": "Privat",
     "privateHint": "Nur ich",
     "taskUnassigns": "Eine private Aufgabe kann nicht zugewiesen werden: die Zuweisung wird entfernt.",
-    "documentOwnerOnly": "Nur wer ein Dokument hochgeladen hat, kann seine Sichtbarkeit ändern."
+    "documentOwnerOnly": "Nur wer ein Dokument hochgeladen hat, kann seine Sichtbarkeit ändern.",
+    "redactedExpense": "Private Ausgabe"
   }
 }

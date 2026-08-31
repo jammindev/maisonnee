@@ -1536,6 +1536,10 @@
           "budget": {
             "title": "Suivre le budget",
             "body": "Les dépenses liées alimentent le coût réel, comparé automatiquement au budget."
+          },
+          "privacy": {
+            "title": "Garder un chantier pour soi",
+            "body": "« Privé » réserve le chantier à vous seul — et avec lui ses tâches, ses notes, ses documents et ses suivis. Ses zones restent partagées : une pièce de la maison n'est pas un secret. Ses dépenses restent comptées dans les budgets du foyer, mais sans rien en dire : les autres voient un montant, pas ce qu'il a servi à acheter. Un chantier qui contient déjà le travail d'un autre membre ne peut pas être rendu privé — l'app le refuse plutôt que de le lui retirer en silence."
           }
         }
       },
@@ -3006,7 +3010,8 @@
         "save": "Enregistrer",
         "saving": "Enregistrement...",
         "cancel": "Annuler"
-      }
+      },
+      "privateHint": "Les tâches, notes, dépenses, documents et trackers de ce chantier deviennent privés avec lui. Ses zones restent partagées."
     },
     "groups": {
       "title": "Groupes de projets",
@@ -4841,6 +4846,7 @@
     "private": "Privé",
     "privateHint": "Moi uniquement",
     "taskUnassigns": "Une tâche privée ne peut pas être assignée : l'assignation sera retirée.",
-    "documentOwnerOnly": "Seul le déposant d'un document peut changer sa visibilité."
+    "documentOwnerOnly": "Seul le déposant d'un document peut changer sa visibilité.",
+    "redactedExpense": "Dépense privée"
   }
 }

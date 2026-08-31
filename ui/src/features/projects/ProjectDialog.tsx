@@ -7,6 +7,7 @@ import { Textarea } from '@/design-system/textarea';
 import { Button } from '@/design-system/button';
 import { Select } from '@/design-system/select';
 import { FormField } from '@/design-system/form-field';
+import { VisibilityField } from '@/design-system/visibility-field';
 import ZonePicker from '@/features/zones/ZonePicker';
 import {
   type ProjectListItem,
@@ -50,6 +51,7 @@ export default function ProjectDialog({
   const [dueDate, setDueDate] = React.useState('');
   const [plannedBudget, setPlannedBudget] = React.useState('');
   const [zoneIds, setZoneIds] = React.useState<string[]>([]);
+  const [isPrivate, setIsPrivate] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -66,6 +68,7 @@ export default function ProjectDialog({
       existingProject?.planned_budget ? String(Number(existingProject.planned_budget)) : '',
     );
     setZoneIds(existingProject?.zones?.map((z) => z.id) ?? []);
+    setIsPrivate(existingProject?.is_private ?? false);
     setError(null);
   }, [open, existingProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -88,6 +91,7 @@ export default function ProjectDialog({
       due_date: dueDate || null,
       planned_budget: plannedBudget ? Number(plannedBudget) : 0,
       zone_ids: zoneIds,
+      is_private: isPrivate,
     };
 
     const action =
@@ -101,8 +105,17 @@ export default function ProjectDialog({
         onOpenChange(false);
         onSaved();
       })
-      .catch(() => {
+      .catch((err) => {
         setLoading(false);
+        // Le refus de privatiser est un 400 **nommé** : il dit combien d'éléments
+        // appartiennent à d'autres membres. L'afficher tel quel, plutôt qu'un
+        // « échec de l'enregistrement » générique — le refus n'a de sens que s'il
+        // se corrige, et un message opaque ne se corrige pas.
+        const named = err?.response?.data?.is_private;
+        if (named) {
+          setError(Array.isArray(named) ? named.join(' ') : String(named));
+          return;
+        }
         setError(
           isEditing
             ? t('projects.form.errors.update_failed')
@@ -224,6 +237,16 @@ export default function ProjectDialog({
               onChange={setPlannedBudget}
             />
           </FormField>
+
+          {/* Visibilité — un chantier privé rend privé tout ce qu'il contient :
+              tâches, notes, dépenses, documents, trackers. Jamais ses zones : une
+              pièce de la maison est structurelle, partagée par vingt features. */}
+          <VisibilityField
+            id="proj-private"
+            value={isPrivate}
+            onChange={setIsPrivate}
+            privateHint={t('projects.form.privateHint')}
+          />
 
           <div className="flex justify-end gap-2 pt-2">
             <Button

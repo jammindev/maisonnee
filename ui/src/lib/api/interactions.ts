@@ -55,6 +55,10 @@ export interface InteractionListItem {
   /** Privé = seul l'auteur la voit. Sans effet sur une dépense, qui alimente
    * sept agrégations et ne disparaît donc d'aucune liste. */
   is_private?: boolean;
+  /** Le serveur a **masqué** le contenu : la ligne est là, son montant compte dans
+   * tous les totaux, mais sujet, fournisseur et chantier source sont vidés. Sans ce
+   * drapeau, un sujet vide ressemblerait à une saisie bâclée plutôt qu'à un secret. */
+  is_redacted?: boolean;
   metadata?: Record<string, unknown>;
   // Expense columns (promoted out of metadata). Only meaningful for type='expense'.
   amount?: string | null;

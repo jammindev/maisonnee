@@ -1536,6 +1536,10 @@
           "budget": {
             "title": "Seguir el presupuesto",
             "body": "Los gastos vinculados alimentan el coste real, comparado automáticamente con el presupuesto."
+          },
+          "privacy": {
+            "title": "Guardar una obra para uno mismo",
+            "body": "«Privado» reserva la obra solo para ti, junto con sus tareas, notas, documentos y seguimientos. Sus zonas siguen compartidas: una habitación de la casa no es un secreto. Sus gastos siguen contando en los presupuestos del hogar, pero sin decir nada: los demás ven un importe, no qué compró. Una obra que ya contiene el trabajo de otro miembro no puede hacerse privada: la aplicación lo rechaza en vez de quitárselo en silencio."
           }
         }
       },
@@ -3006,7 +3010,8 @@
         "save": "Guardar cambios",
         "saving": "Guardando...",
         "cancel": "Cancelar"
-      }
+      },
+      "privateHint": "Las tareas, notas, gastos, documentos y seguimientos de esta obra pasan a ser privados con ella. Sus zonas siguen compartidas."
     },
     "groups": {
       "title": "Grupos de proyectos",
@@ -4841,6 +4846,7 @@
     "private": "Privado",
     "privateHint": "Solo yo",
     "taskUnassigns": "Una tarea privada no puede asignarse: se quitará la asignación.",
-    "documentOwnerOnly": "Solo quien subió un documento puede cambiar su visibilidad."
+    "documentOwnerOnly": "Solo quien subió un documento puede cambiar su visibilidad.",
+    "redactedExpense": "Gasto privado"
   }
 }

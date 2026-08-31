@@ -418,31 +418,89 @@ class TestTheAssistantHonoursTaskAndNotePrivacy:
 
 
 @pytest.mark.django_db
-class TestAPrivateExpenseIsStillCitable:
-    """L'exception de l'argent vaut aussi pour l'assistant, et pour la même raison.
+class TestAPrivateExpenseCountsWithoutBeingNamed:
+    """L'argent : compté par tous, nommé par son auteur seul.
 
-    Une dépense ne disparaît d'aucune liste — sept agrégations la lisent. Si le
-    retrieval la cachait alors que la page Activité la sert, l'agent et l'écran se
-    contrediraient sur un montant, ce qui est exactement le défaut que
-    ``interactions.visibility`` existe pour empêcher. Son contenu sera masqué au
-    lot 4 ; son existence, jamais.
+    C'est l'endroit du parcours où les deux règles se croisent et pourraient
+    s'annuler. Une dépense de chantier privé **doit** entrer dans les totaux — sept
+    agrégations la lisent, et l'en retirer donnerait à la barre de budget deux
+    valeurs selon le lecteur. Elle **ne doit pas** être citable — son sujet
+    auto-généré est « Achat — <titre du chantier> », donc la citer ferait fuiter
+    dans le chat le nom de ce qu'on venait de cacher.
+
+    Les deux moitiés sont testées ensemble : corriger l'une sans l'autre est
+    exactement ce qui rendrait le parcours faux, dans un sens ou dans l'autre.
     """
 
-    def test_the_other_member_can_still_find_it(self, bob, shared_household, alice):
+    def _expense(self, household, alice, *, project=None):
         from decimal import Decimal
 
+        from django.contrib.contenttypes.models import ContentType
         from django.utils import timezone
 
         from interactions.models import Interaction
+        from projects.models import Project
 
-        expense = Interaction.objects.create(
-            household=shared_household,
+        kwargs = {}
+        if project is not None:
+            kwargs = {
+                "source_content_type": ContentType.objects.get_for_model(Project),
+                "source_object_id": project.pk,
+            }
+        return Interaction.objects.create(
+            household=household,
             created_by=alice,
             subject=f"Achat de {NEEDLE}",
             type="expense",
-            is_private=True,
             amount=Decimal("42.00"),
             occurred_at=timezone.now(),
+            **kwargs,
         )
 
-        assert str(expense.id) in _found_ids(bob, "interaction")
+    def test_a_private_expense_is_not_citable_by_the_other_member(
+        self, bob, shared_household, alice
+    ):
+        expense = self._expense(shared_household, alice)
+        expense.is_private = True
+        expense.save(update_fields=["is_private"])
+
+        assert str(expense.id) not in _found_ids(bob, "interaction")
+        assert NEEDLE not in _tool_search_text(bob, shared_household)
+
+    def test_a_private_projects_expense_is_not_citable_either(
+        self, bob, shared_household, alice
+    ):
+        """L'héritage : la dépense n'a pas de drapeau, son chantier en a un."""
+        from projects.models import Project
+
+        project = Project.objects.create(
+            household=shared_household, created_by=alice,
+            title="Cabane surprise", is_private=True,
+        )
+        expense = self._expense(shared_household, alice, project=project)
+
+        assert str(expense.id) not in _found_ids(bob, "interaction")
+
+    def test_but_it_still_counts_in_what_the_assistant_totals(
+        self, bob, shared_household, alice
+    ):
+        """La moitié qui garde les compteurs d'accord.
+
+        ``list_entities`` somme sur **tout** le jeu filtré, pas sur la page rendue :
+        le montant d'une dépense illisible entre dans le total, seule la ligne
+        refuse de la nommer. Sans ça, « combien a-t-on dépensé ? » n'aurait pas la
+        même réponse pour Alice et pour Bob, alors que la page Budgets, elle, en
+        donne une seule.
+        """
+        expense = self._expense(shared_household, alice)
+        expense.is_private = True
+        expense.save(update_fields=["is_private"])
+
+        result = tools.dispatch(
+            "list_entities",
+            {"entity_type": "interaction", "filters": {"type": "expense"}},
+            household=shared_household,
+            user=bob,
+        )
+        assert "sum_amount=42.00" in result.rendered, result.rendered
+        assert NEEDLE not in result.rendered, "le total oui, le nom non"

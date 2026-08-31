@@ -85,7 +85,7 @@ export const TUTORIAL_GUIDES: TutorialGuide[] = [
   { key: 'games', moduleKey: 'games', to: '/app/games', stepIds: ['labels', 'compose', 'riddles', 'play', 'replay'] },
   { key: 'insurance', moduleKey: 'insurance', to: '/app/insurance', stepIds: ['contracts', 'documents'] },
   { key: 'tasks', moduleKey: 'tasks', to: '/app/tasks', stepIds: ['create', 'organize', 'weather', 'complete', 'privacy'] },
-  { key: 'projects', moduleKey: 'projects', to: '/app/projects', stepIds: ['create', 'plan', 'photos', 'budget'] },
+  { key: 'projects', moduleKey: 'projects', to: '/app/projects', stepIds: ['create', 'plan', 'photos', 'budget', 'privacy'] },
   { key: 'interactions', moduleKey: 'interactions', to: '/app/interactions', stepIds: ['log', 'types', 'link', 'privacy'] },
   { key: 'trackers', moduleKey: 'trackers', to: '/app/trackers', stepIds: ['create', 'entries', 'charts'] },
   // Module « Argent » (parcours 26). Le premier guide explique **comment l'app

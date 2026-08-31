@@ -244,3 +244,106 @@ def _numbered(label: str, index: int):
         raise ValidationError({label: [f"ligne {index + 1} : {exc.detail}"]}) from exc
     except (ValueError, ObjectDoesNotExist) as exc:
         raise ValidationError({label: [f"ligne {index + 1} : {exc}"]}) from exc
+# ── Privatiser un chantier ────────────────────────────────────────────────────
+
+
+def foreign_content_counts(project, user) -> dict[str, int]:
+    """Ce que le chantier contient et qui n'appartient pas à ``user``.
+
+    Compté par famille pour que le refus puisse **dire** ce qui bloque : « 2 tâches
+    et 1 note d'un autre membre » se corrige, « impossible » ne se corrige pas.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from documents.models import DocumentLink
+    from interactions.models import Interaction
+    from tasks.models import Task
+    from trackers.models import Tracker
+
+    from .models import Project
+
+    project_ct = ContentType.objects.get_for_model(Project)
+    return {
+        "tasks": Task.objects.filter(project=project).exclude(created_by=user).count(),
+        "interactions": Interaction.objects.filter(
+            source_content_type=project_ct, source_object_id=project.id
+        ).exclude(created_by=user).count(),
+        "trackers": Tracker.objects.filter(project=project).exclude(created_by=user).count(),
+        "documents": DocumentLink.objects.filter(
+            content_type=project_ct, object_id=project.id
+        ).exclude(document__created_by=user).count(),
+    }
+
+
+def assert_can_privatise(project, user) -> None:
+    """Refuser de privatiser un chantier qui contient le travail d'un autre.
+
+    Le troisième chemin possible, et le seul honnête. Les deux autres étaient
+    mauvais symétriquement : « le chantier gagne » **confisque** à l'autre membre ce
+    qu'il a écrit — sa tâche disparaît sans un mot et il ne peut pas la retrouver ;
+    « le créateur garde » ne confisque rien mais fait **mentir la case**, puisque le
+    chantier cesse d'être privé dès qu'un autre membre y a touché.
+
+    Un refus, lui, se voit. Et il ne coûte rien au cas réel : le chantier surprise
+    est créé par une seule personne, donc il passe. Seul l'ambigu est refusé.
+
+    Corollaire qui simplifie tout le reste du parcours : **la cascade ne porte
+    jamais que sur ce que le demandeur a créé lui-même**, ce qui supprime la
+    question « privé pour qui ? » au niveau des enfants.
+    """
+    from rest_framework import serializers as drf_serializers
+
+    counts = {family: n for family, n in foreign_content_counts(project, user).items() if n}
+    if not counts:
+        return
+
+    detail = ", ".join(f"{n} {family}" for family, n in sorted(counts.items()))
+    raise drf_serializers.ValidationError({
+        "is_private": (
+            "Ce chantier contient le travail d'autres membres du foyer "
+            f"({detail}). Le rendre privé le leur retirerait sans un mot : "
+            "détachez ces éléments ou demandez à leurs auteurs de les rendre "
+            "privés eux-mêmes."
+        ),
+        "foreign_content": counts,
+    })
+
+
+def retract_notifications_for(project) -> int:
+    """Retirer des cloches ce que la privatisation vient de rendre inaccessible.
+
+    Une annonce ne survit pas à son sujet — même règle qu'à la suppression d'une
+    note. Ici le sujet n'est pas supprimé, il devient invisible à tous sauf un :
+    une notification « Bob a terminé Poser le bardage » qui mène à un écran vide
+    ferait chercher au lecteur ce que l'app vient de lui cacher, sans qu'il puisse
+    savoir si c'est l'app ou lui qui se trompe.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from interactions.models import Interaction
+    from notifications.models import Notification
+    from notifications.service import retract_by_payload
+    from tasks.models import Task
+
+    from .models import Project
+
+    retracted = 0
+    for task_id in Task.objects.filter(project=project).values_list("id", flat=True):
+        retracted += retract_by_payload(
+            Notification.Type.TASK_CREATED, task_id=str(task_id)
+        )
+
+    note_ids = Interaction.objects.filter(
+        source_content_type=ContentType.objects.get_for_model(Project),
+        source_object_id=project.id,
+        type="note",
+    ).values_list("id", flat=True)
+    for note_id in note_ids:
+        # La clé de payload est ``note_id`` — voir ``interactions.notifications``.
+        # Se tromper de nom ne lève rien : le filtre JSON ne matche simplement
+        # aucune ligne, et la rétractation devient un no-op silencieux.
+        retracted += retract_by_payload(
+            Notification.Type.NOTE_CREATED, note_id=str(note_id)
+        )
+    return retracted
+
