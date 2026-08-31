@@ -471,14 +471,19 @@
       "indexM3": "Index (m³)",
       "readingDate": "Date du relevé",
       "indexRequired": "La date et l'index sont requis.",
-      "recentTitle": "Derniers relevés"
+      "recentTitle": "Derniers relevés",
+      "since": "depuis le {{date}}",
+      "first": "premier relevé",
+      "index": "index {{value}} m³"
     },
     "chart": {
+      "volume": "Consommation",
       "rate": "Débit",
       "rateUnit": "L/jour",
-      "rateUnitShort": "L/j",
-      "intervalDetail": "{{volume}} m³ relevés sur {{days}} jours",
-      "noReadingHere": "Aucun relevé ne couvre cette date.",
+      "estimatedFrom": "Estimé : aucun relevé ce mois-ci, réparti entre ceux du {{from}} et du {{to}}.",
+      "partialPeriod": "Période partiellement couverte : elle commence ou finit hors de vos relevés.",
+      "legendEstimated": "estimé",
+      "legendPartial": "période incomplète",
       "needsTwoReadings": "Il faut deux relevés pour calculer une consommation.",
       "averageRate": "soit {{rate}} {{unit}} en moyenne"
     }

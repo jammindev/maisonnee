@@ -471,14 +471,19 @@
       "indexM3": "Índice (m³)",
       "readingDate": "Fecha de lectura",
       "indexRequired": "La fecha y el índice son obligatorios.",
-      "recentTitle": "Últimas lecturas"
+      "recentTitle": "Últimas lecturas",
+      "since": "desde el {{date}}",
+      "first": "primera lectura",
+      "index": "índice {{value}} m³"
     },
     "chart": {
+      "volume": "Consumo",
       "rate": "Caudal",
       "rateUnit": "L/día",
-      "rateUnitShort": "L/d",
-      "intervalDetail": "{{volume}} m³ medidos en {{days}} días",
-      "noReadingHere": "Ninguna lectura cubre esta fecha.",
+      "estimatedFrom": "Estimado: ninguna lectura este mes, repartido entre las del {{from}} y del {{to}}.",
+      "partialPeriod": "Periodo parcialmente cubierto: empieza o termina fuera de sus lecturas.",
+      "legendEstimated": "estimado",
+      "legendPartial": "periodo incompleto",
       "needsTwoReadings": "Se necesitan dos lecturas para calcular el consumo.",
       "averageRate": "es decir {{rate}} {{unit}} de media"
     }

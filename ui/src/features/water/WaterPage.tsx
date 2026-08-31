@@ -7,7 +7,7 @@ import { FilterPill } from '@/design-system/filter-pill';
 import CardActions, { type CardAction } from '@/components/CardActions';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import WaterRateChart from './WaterRateChart';
+import WaterVolumeChart from './WaterVolumeChart';
 import WeatherOverlayToggle from '@/features/weather/WeatherOverlayToggle';
 import { useTemperatureOverlay } from '@/features/weather/overlay';
 import { appLocale } from '@/lib/format';
@@ -15,7 +15,7 @@ import { useDelayedLoading } from '@/lib/useDelayedLoading';
 import { useDeleteWithUndo } from '@/lib/useDeleteWithUndo';
 import { useSessionState } from '@/lib/useSessionState';
 import { isoDate, periodLabel, periodRange, shiftAnchor } from '@/lib/period';
-import type { WaterGranularity, WaterReading } from '@/lib/api/water';
+import type { WaterChartGranularity, WaterReading } from '@/lib/api/water';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useDeleteWaterReading,
@@ -24,9 +24,12 @@ import {
   waterKeys,
 } from './hooks';
 import WaterReadingDialog from './WaterReadingDialog';
-import { buildIntervals, buildRateRows, coveredDays, type TickResolution } from './rateCurve';
+import { buildIntervals, coveredDays, qualifyBuckets, type WaterInterval } from './waterSeries';
 
-const GRANULARITIES: WaterGranularity[] = ['day', 'month', 'year'];
+// Le jour est parti avec #682 : les relevés sont manuels et espacés, cette
+// résolution n'existe pas dans les données (l'heure était partie pour la même
+// raison dès la création du module).
+const GRANULARITIES: WaterChartGranularity[] = ['month', 'year'];
 
 function formatM3(litres: number): string {
   return (litres / 1000).toLocaleString(appLocale(), { maximumFractionDigits: 3 });
@@ -34,29 +37,72 @@ function formatM3(litres: number): string {
 
 // ── Readings list ─────────────────────────────────────────────────────────────
 
+/**
+ * Un relevé, et surtout **ce qui s'est passé depuis le précédent**.
+ *
+ * La liste affichait l'index brut du compteur — « 1104,3 m³ ». Ce nombre ne dit
+ * rien à un humain : il ne se compare qu'au relevé d'avant, et c'est justement
+ * cette soustraction qu'on demandait au lecteur de faire de tête. La ligne
+ * porte donc le volume et le débit de l'intervalle qui s'achève ici ; l'index
+ * reste, en retrait, parce que c'est lui qu'on relit sur le compteur.
+ *
+ * La ligne reste **le relevé** et non l'intervalle : éditer et supprimer
+ * agissent sur un objet, et un intervalle n'en est pas un.
+ */
 interface ReadingRowProps {
   reading: WaterReading;
+  /** L'intervalle qui se termine à ce relevé — absent pour le tout premier. */
+  interval?: WaterInterval;
   locale: string;
   onEdit: () => void;
   onDelete: () => void;
-  t: (key: string) => string;
+  t: (key: string, opts?: Record<string, unknown>) => string;
 }
 
-function ReadingRow({ reading, locale, onEdit, onDelete, t }: ReadingRowProps) {
+function ReadingRow({ reading, interval, locale, onEdit, onDelete, t }: ReadingRowProps) {
   const actions: CardAction[] = [
     { label: t('common.edit'), icon: Pencil, onClick: onEdit },
     { label: t('common.delete'), icon: Trash2, onClick: onDelete, variant: 'danger' },
   ];
-  const date = new Date(`${reading.reading_date}T00:00:00`);
+  const shortDate = (iso: string) =>
+    new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+
   return (
     <Card className="p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">
-            {date.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })}
-          </span>
-          <span className="font-medium">{Number(reading.index_m3).toLocaleString(locale)} m³</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-sm font-medium">
+              {new Date(`${reading.reading_date}T12:00:00`).toLocaleDateString(locale, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })}
+            </span>
+            {interval ? (
+              <span className="text-sm text-muted-foreground">
+                {t('water.reading.since', { date: shortDate(interval.from) })}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">{t('water.reading.first')}</span>
+            )}
+          </div>
+          <p className="pt-0.5 text-xs text-muted-foreground">
+            {t('water.reading.index', {
+              value: Number(reading.index_m3).toLocaleString(locale),
+            })}
+          </p>
         </div>
+        {interval && (
+          <div className="shrink-0 text-right">
+            <p className="text-sm font-medium">
+              {(interval.litres / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} m³
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {Math.round(interval.litresPerDay).toLocaleString(locale)} {t('water.chart.rateUnit')}
+            </p>
+          </div>
+        )}
         <CardActions actions={actions} />
       </div>
     </Card>
@@ -71,7 +117,15 @@ export default function WaterPage() {
   const qc = useQueryClient();
 
   const { data: readings = [], isLoading: readingsLoading } = useWaterReadings();
-  const [granularity, setGranularity] = useSessionState<WaterGranularity>('water.granularity', 'day');
+  const [storedGranularity, setGranularity] = useSessionState<WaterChartGranularity>(
+    'water.granularity',
+    'month',
+  );
+  // Une session ouverte avant #682 peut encore porter 'day' : on la ramène au
+  // mois plutôt que de demander au serveur un découpage que l'écran n'offre plus.
+  const granularity: WaterChartGranularity = GRANULARITIES.includes(storedGranularity)
+    ? storedGranularity
+    : 'month';
   const [anchorIso, setAnchorIso] = useSessionState<string>('water.anchor', isoDate(new Date()));
 
   const anchor = React.useMemo(() => new Date(`${anchorIso}T00:00:00`), [anchorIso]);
@@ -96,11 +150,10 @@ export default function WaterPage() {
   // même fonction pure sur les mêmes relevés (cf. `rateCurve.ts`).
   const intervals = React.useMemo(() => buildIntervals(readings), [readings]);
 
-  // Le graphe trace une ligne par jour de la fenêtre : l'overlay doit s'aligner
-  // dessus, mais rester borné par la fenêtre (une décennie ne se télécharge pas).
-  const overlayBuckets = React.useMemo(
-    () => buildRateRows(intervals, from, to).map((row) => ({ ts: row.ts })),
-    [intervals, from, to],
+  // Ce que chaque barre a le droit d'affirmer — mesurée, estimée, ou partielle.
+  const chartBuckets = React.useMemo(
+    () => qualifyBuckets(summary?.buckets ?? [], intervals, readings, granularity),
+    [summary, intervals, readings, granularity],
   );
 
   const [showWeather, setShowWeather] = useSessionState<boolean>('water.showWeather', false);
@@ -108,8 +161,7 @@ export default function WaterPage() {
     from,
     to,
     granularity,
-    pointGranularity: 'day',
-    buckets: overlayBuckets,
+    buckets: chartBuckets,
     show: showWeather,
   });
 
@@ -150,9 +202,10 @@ export default function WaterPage() {
   // intervalle recoupe la fenêtre. Deux relevés sont le minimum pour consommer.
   const hasData = (summary?.buckets.length ?? 0) > 0;
   const needsSecondReading = readings.length < 2;
+  // L'intervalle qui s'achève à chaque relevé — indexé pour la liste du bas.
+  const intervalEndingAt = new Map(intervals.map((i) => [i.to, i]));
   const daysCovered = coveredDays(intervals, from, to);
   const averageRate = daysCovered > 0 ? (summary?.total_l ?? 0) / daysCovered : null;
-  const tickResolution: TickResolution = granularity;
 
   return (
     <div className="space-y-4">
@@ -220,11 +273,9 @@ export default function WaterPage() {
         {summaryLoading && !summary ? (
           <div className="h-64 animate-pulse rounded-lg bg-muted sm:h-80" />
         ) : hasData && summary ? (
-          <WaterRateChart
-            readings={readings}
-            from={from}
-            to={to}
-            tickResolution={tickResolution}
+          <WaterVolumeChart
+            buckets={chartBuckets}
+            granularity={granularity}
             overlay={weatherOverlay}
           />
         ) : (
@@ -244,6 +295,7 @@ export default function WaterPage() {
             <ReadingRow
               key={reading.id}
               reading={reading}
+              interval={intervalEndingAt.get(reading.reading_date)}
               locale={locale}
               onEdit={() => { setEditingReading(reading); setReadingDialogOpen(true); }}
               onDelete={() => {

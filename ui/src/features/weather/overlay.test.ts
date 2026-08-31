@@ -29,18 +29,6 @@ describe('buildTemperatureOverlay', () => {
     ]);
   });
 
-  it('serves the water case: a daily grid over a wide window stays day-resolved', () => {
-    // L'eau borne le *fetch* sur la fenêtre (mois/année) mais trace une grille
-    // quotidienne, d'où `pointGranularity: 'day'` (#678). Sans ça, chaque jour
-    // d'un même mois recevait la moyenne du mois — une ligne en escalier qui
-    // n'est pas ce que l'archive sait.
-    const buckets = ['2026-03-01', '2026-03-02', '2026-03-03'].map((d) => ({
-      ts: `${d}T12:00:00`,
-    }));
-    const points = [point('2026-03-01', 8), point('2026-03-02', 10), point('2026-03-03', 12)];
-    expect(buildTemperatureOverlay(buckets, points, 'day').map((p) => p.value)).toEqual([8, 10, 12]);
-  });
-
   it('plots nothing for a decade — the window that is never fetched', () => {
     const buckets = [{ ts: '2026-01-01T12:00:00' }];
     expect(buildTemperatureOverlay(buckets, [point('2026-01-01', 5)], 'year')).toEqual([]);

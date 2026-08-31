@@ -6,6 +6,20 @@ import type { Granularity } from '@/lib/period';
 // Water granularities — readings are date-only, so no hourly view.
 export type WaterGranularity = Exclude<Granularity, 'hour'>;
 
+/**
+ * Ce que la **page** eau propose : le mois et l'année, rien de plus fin.
+ *
+ * Les relevés sont manuels, date-only et espacés. L'heure avait été écartée dès
+ * la création du module pour cette raison ; le jour part pour la même (#682) —
+ * un foyer qui relève une fois par mois y voyait trente barres identiques, soit
+ * trente observations dessinées pour une seule mesure. Le mois est le plus petit
+ * bucket que ces données portent, et c'est aussi celui de la facture.
+ *
+ * `WaterGranularity` reste plus large : l'API accepte toujours `day`, dont la
+ * carte du tableau de bord se sert pour sa sparkline sur 30 jours.
+ */
+export type WaterChartGranularity = Extract<Granularity, 'month' | 'year'>;
+
 export interface WaterReading {
   id: string;
   household: string;
