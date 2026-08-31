@@ -1,7 +1,9 @@
 import logging
+import uuid
 
 from django.utils import timezone
-from rest_framework import status as drf_status, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, status as drf_status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
@@ -62,15 +64,70 @@ class ProjectViewSet(DocumentLinkActionsMixin, _HouseholdScopedViewSet):
     serializer_class = ProjectSerializer
     document_link_role = "supporting"
 
+    # ⚠️ Sans ces trois backends, DRF **ignore en silence** tout paramètre de
+    # requête que personne ne réclame. La barre de filtres de `/app/projects`
+    # envoyait `search`, `type` et `ordering` depuis toujours : le serveur n'en
+    # lisait aucun et renvoyait la liste entière, donc chercher ne faisait rien
+    # et ne disait rien. `status` et `zone` marchaient pour la seule raison
+    # qu'ils étaient câblés à la main juste en dessous — ce qui **ressemblait à
+    # une liste filtrable** en revue comme à l'écran (#688).
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    # ⚠️ Pas de FK ici — ni `project_group`, ni la zone. `filterset_fields` en
+    # fait un `ModelChoiceFilter` sur **tout le modèle**, non borné au foyer :
+    # un id appartenant à un autre foyer répond 200 (liste vide), un id qui
+    # n'existe nulle part répond 400. La différence est lisible depuis
+    # l'extérieur, donc le filtre dit si un identifiant existe ailleurs dans
+    # l'instance. C'est la note jumelle de `TaskViewSet` et `InteractionViewSet` :
+    # un filtre ne doit jamais pouvoir élargir ce que borne le queryset. Second
+    # effet, plus banal : un groupe supprimé depuis un favori mettait la liste
+    # entière en 400 au lieu de ne rien renvoyer.
+    filterset_fields = ["status", "type"]
+    search_fields = ["title", "description"]
+    ordering_fields = ["title", "priority", "start_date", "due_date", "created_at", "updated_at"]
+    # Le modèle n'a pas de `Meta.ordering` : sans défaut ici, Postgres rend un
+    # ordre arbitraire et la liste peut se réordonner d'un rechargement à
+    # l'autre. Le tri par titre plutôt que par récence parce que deux écrans
+    # rendent cette liste **dans un `<select>`** sans la retrier
+    # (`NewTaskDialog`, `TrackerDialog`) : un menu qui se réordonne dès qu'on
+    # édite un chantier sans rapport fait cliquer à côté. La page liste, elle,
+    # demande `-updated_at` explicitement. `id` ferme le tri — à titres égaux,
+    # Postgres reste libre de son ordre, et « stable » redeviendrait faux.
+    ordering = ["title", "id"]
+
     def get_queryset(self):
         queryset = super().get_queryset()
-        zone_id = self.request.query_params.get('zone', '').strip()
+        # Les deux filtres par FK restent manuels — voir la note ci-dessus. La
+        # zone impose en plus un `distinct()` : la relation passe par la table
+        # de liaison `project_zones`.
+        zone_id = self._uuid_param('zone')
         if zone_id:
             queryset = queryset.filter(project_zones__zone_id=zone_id).distinct()
-        status = self.request.query_params.get('status', '').strip()
-        if status:
-            queryset = queryset.filter(status=status)
+        group_id = self._uuid_param('project_group')
+        if group_id:
+            queryset = queryset.filter(project_group_id=group_id)
         return annotate_actual_cost(queryset)
+
+    def _uuid_param(self, name):
+        """Lit un identifiant de la query string, ou 400 s'il est illisible.
+
+        ⚠️ Un `.filter(pk=<pas un uuid>)` lève une `django.core.exceptions.
+        ValidationError`, que le gestionnaire d'exceptions de DRF ne convertit
+        pas : c'est un **500**. Et ce n'est pas théorique, `ZoneDetailPage`
+        passe le segment d'URL brut dans `?zone=`, donc `/app/zones/nimporte`
+        faisait tomber la liste des projets.
+
+        Un id valide mais inconnu, lui, n'est pas une erreur : il rend une
+        liste vide. C'est ce qui distingue « cette adresse est mal formée » de
+        « ce foyer n'a rien à ce nom », et c'est aussi ce qui empêche le filtre
+        de dire si un id existe **ailleurs** dans l'instance.
+        """
+        raw = self.request.query_params.get(name, '').strip()
+        if not raw:
+            return None
+        try:
+            return uuid.UUID(raw)
+        except ValueError:
+            raise ValidationError({name: "Identifiant invalide."})
 
     def perform_create(self, serializer):
         household = self.request.household

@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 
 import pytest
@@ -426,3 +427,220 @@ class TestProjectDocumentLinks:
         response = owner_client.post(url, {"document_id": str(document.id)}, format="json")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+class TestTheListHonoursWhatTheFilterBarSends:
+    """La barre de filtres de `/app/projects` envoie `search`, `status` et `type`.
+
+    Le viewset ne déclarait aucun `filter_backends` : DRF ignore silencieusement
+    tout paramètre qu'aucun backend ne réclame, donc taper dans la recherche
+    renvoyait la liste entière — sans un mot, ni côté serveur ni à l'écran.
+    """
+
+    @pytest.fixture
+    def three_projects(self, household, owner):
+        cuisine = Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Rénovation cuisine',
+            description='Changer les plans de travail',
+            type=Project.Type.RENOVATION,
+            status=Project.Status.ACTIVE,
+        )
+        toiture = Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Réparer la toiture',
+            description='Tuiles cassées côté nord',
+            type=Project.Type.REPAIR,
+            status=Project.Status.ACTIVE,
+        )
+        vacances = Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Vacances été',
+            description='',
+            type=Project.Type.VACATION,
+            status=Project.Status.ACTIVE,
+        )
+        return cuisine, toiture, vacances
+
+    def _titles(self, response):
+        data = response.data
+        results = data['results'] if isinstance(data, dict) else data
+        return [r['title'] for r in results]
+
+    def test_search_matches_the_title(self, owner_client, three_projects):
+        response = owner_client.get(reverse('project-list'), {'search': 'toiture'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Réparer la toiture']
+
+    def test_search_matches_the_description(self, owner_client, three_projects):
+        response = owner_client.get(reverse('project-list'), {'search': 'plans de travail'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Rénovation cuisine']
+
+    def test_a_search_that_matches_nothing_returns_nothing(self, owner_client, three_projects):
+        """Le symptôme rapporté : la recherche renvoyait la liste entière."""
+        response = owner_client.get(reverse('project-list'), {'search': 'zzzzz-introuvable'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == []
+
+    def test_the_type_filter_narrows_the_list(self, owner_client, three_projects):
+        response = owner_client.get(reverse('project-list'), {'type': 'vacation'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Vacances été']
+
+    def test_search_and_status_compose(self, owner_client, household, owner, three_projects):
+        Project.objects.create(
+            household=household,
+            created_by=owner,
+            title='Rénovation cuisine (annulée)',
+            type=Project.Type.RENOVATION,
+            status=Project.Status.CANCELLED,
+        )
+
+        response = owner_client.get(
+            reverse('project-list'), {'search': 'cuisine', 'status': 'active'}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Rénovation cuisine']
+
+    def test_search_stays_inside_the_household(self, owner_client, three_projects):
+        """Un backend de recherche ne doit pas élargir la portée du queryset."""
+        other = _household("Autre foyer")
+        Project.objects.create(
+            household=other,
+            title='Rénovation cuisine du voisin',
+            type=Project.Type.RENOVATION,
+            status=Project.Status.ACTIVE,
+        )
+
+        response = owner_client.get(reverse('project-list'), {'search': 'cuisine'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response) == ['Rénovation cuisine']
+
+    def test_the_ordering_param_is_honoured(self, owner_client, three_projects):
+        cuisine, toiture, vacances = three_projects
+        toiture.title = 'Réparer la toiture (mis à jour)'
+        toiture.save(update_fields=['title', 'updated_at'])
+
+        response = owner_client.get(reverse('project-list'), {'ordering': '-updated_at'})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._titles(response)[0] == 'Réparer la toiture (mis à jour)'
+
+    def test_a_request_without_ordering_is_still_ordered(self, owner_client, three_projects):
+        """Le défaut du viewset, et non le paramètre — ce sont deux garanties.
+
+        Le modèle n'a pas de `Meta.ordering` : sans défaut déclaré, Postgres rend
+        l'ordre qui l'arrange et la liste peut se réordonner d'un rechargement à
+        l'autre. Un test qui envoie `ordering=` n'exerce que le backend DRF et
+        reste vert le jour où le défaut disparaît.
+        """
+        # Insérés à rebours de l'ordre alphabétique : sans tri déclaré, une base
+        # qui rend simplement l'ordre d'insertion ferait passer le test pour rien.
+        for title in ('Zinc', 'Mur', 'Abri'):
+            Project.objects.create(
+                household=three_projects[0].household,
+                created_by=three_projects[0].created_by,
+                title=title,
+                type=Project.Type.OTHER,
+                status=Project.Status.ACTIVE,
+            )
+
+        response = owner_client.get(reverse('project-list'))
+
+        assert response.status_code == status.HTTP_200_OK
+        titles = self._titles(response)
+        assert titles == sorted(titles)
+        assert titles[0] == 'Abri'
+
+
+@pytest.mark.django_db
+class TestAFilterNeverWidensWhatTheQuerysetBounds:
+    """Les filtres par FK sont manuels, et ce n'est pas un oubli.
+
+    `filterset_fields` transforme une FK en `ModelChoiceFilter` sur **tout le
+    modèle** : un id d'un autre foyer répond 200 (liste vide), un id qui n'existe
+    nulle part répond 400. Lue de l'extérieur, cette différence dit si un
+    identifiant existe ailleurs dans l'instance. Note jumelle de `TaskViewSet`.
+    """
+
+    def test_a_group_from_another_household_is_indistinguishable_from_an_unknown_one(
+        self, owner_client, household, owner
+    ):
+        Project.objects.create(
+            household=household, created_by=owner, title='Le mien',
+            type=Project.Type.OTHER, status=Project.Status.ACTIVE,
+        )
+        elsewhere = ProjectGroup.objects.create(
+            household=_household("Autre foyer"), name="Groupe du voisin"
+        )
+        nowhere = uuid.uuid4()
+
+        foreign = owner_client.get(reverse('project-list'), {'project_group': str(elsewhere.id)})
+        unknown = owner_client.get(reverse('project-list'), {'project_group': str(nowhere)})
+
+        assert foreign.status_code == unknown.status_code == status.HTTP_200_OK
+        assert foreign.data == unknown.data == []
+
+    def test_a_stale_group_id_returns_nothing_rather_than_breaking_the_list(
+        self, owner_client, household, owner
+    ):
+        """Un groupe supprimé depuis un favori ne doit pas mettre la liste en 400."""
+        group = ProjectGroup.objects.create(household=household, name="Bientôt supprimé")
+        Project.objects.create(
+            household=household, created_by=owner, title='Le mien',
+            type=Project.Type.OTHER, status=Project.Status.ACTIVE,
+        )
+        group_id = group.id
+        group.delete()
+
+        response = owner_client.get(reverse('project-list'), {'project_group': str(group_id)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+    def test_a_malformed_zone_says_so_instead_of_crashing(self, owner_client, household, owner):
+        """`ZoneDetailPage` passe le segment d'URL brut dans `?zone=`.
+
+        Un `.filter(pk=<pas un uuid>)` lève une `ValidationError` Django, que DRF
+        ne convertit pas : `/app/zones/nimporte` rendait un **500**.
+        """
+        Project.objects.create(
+            household=household, created_by=owner, title='Le mien',
+            type=Project.Type.OTHER, status=Project.Status.ACTIVE,
+        )
+
+        response = owner_client.get(reverse('project-list'), {'zone': 'pas-un-uuid'})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_a_malformed_group_says_so_instead_of_crashing(self, owner_client, household, owner):
+        Project.objects.create(
+            household=household, created_by=owner, title='Le mien',
+            type=Project.Type.OTHER, status=Project.Status.ACTIVE,
+        )
+
+        response = owner_client.get(reverse('project-list'), {'project_group': 'pas-un-uuid'})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_an_unknown_zone_returns_nothing(self, owner_client, household, owner):
+        Project.objects.create(
+            household=household, created_by=owner, title='Le mien',
+            type=Project.Type.OTHER, status=Project.Status.ACTIVE,
+        )
+
+        response = owner_client.get(reverse('project-list'), {'zone': str(uuid.uuid4())})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
