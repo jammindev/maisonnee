@@ -1527,7 +1527,7 @@
         "steps": {
           "create": {
             "title": "Crear el proyecto",
-            "body": "Dos puertas. «Crear con el asistente» te hace algunas preguntas y luego propone el proyecto con sus tareas y notas — no se crea nada hasta que lo hayas revisado y desmarcado lo que no sirva. O rellena el formulario tú mismo, si ya lo tienes claro."
+            "body": "Dos puertas. «Crear con el asistente» te hace algunas preguntas y luego propone el proyecto con sus tareas y notas — no se crea nada hasta que lo hayas revisado y desmarcado lo que no sirva. O rellena el formulario tú mismo, si ya lo tienes claro. Durante la entrevista puedes adjuntar un presupuesto o una foto: el asistente la usa para sus preguntas, y el archivo acaba en el proyecto creado."
           },
           "plan": {
             "title": "Reunir tareas y notas",

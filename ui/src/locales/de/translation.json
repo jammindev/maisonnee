@@ -1527,7 +1527,7 @@
         "steps": {
           "create": {
             "title": "Das Projekt anlegen",
-            "body": "Zwei Wege. „Mit dem Assistenten erstellen“ stellt einige Fragen und schlägt dann das Projekt mit Aufgaben und Notizen vor — nichts wird erstellt, bevor du es geprüft und Unnötiges abgewählt hast. Oder füll das Formular selbst aus, wenn du schon weißt, was du willst."
+            "body": "Zwei Wege. „Mit dem Assistenten erstellen“ stellt einige Fragen und schlägt dann das Projekt mit Aufgaben und Notizen vor — nichts wird erstellt, bevor du es geprüft und Unnötiges abgewählt hast. Oder füll das Formular selbst aus, wenn du schon weißt, was du willst. Während des Gesprächs kannst du einen Kostenvoranschlag oder ein Foto anhängen: Der Assistent nutzt es für seine Fragen, und die Datei landet am erstellten Projekt."
           },
           "plan": {
             "title": "Aufgaben und Notizen bündeln",
