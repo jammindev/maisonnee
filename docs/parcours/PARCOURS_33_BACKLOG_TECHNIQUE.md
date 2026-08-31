@@ -119,22 +119,67 @@ irrelisable.
 
 ---
 
-## Lot 4 — Le projet privé ([#664](https://github.com/jammindev/maisonnee/issues/664))
+## Lot 4 — Le projet privé ([#664](https://github.com/jammindev/maisonnee/issues/664)) — **livré**
 
-- `apps/projects/models.py` + migration — `is_private` sur `Project`.
-- `apps/projects/services.py` — `assert_can_privatise(project, user)` : le 400 nommé,
-  avec le compte de ce qui appartient à d'autres.
-- `apps/core/visibility.py` — le `narrow` hérité, `Q(projet public) | Q(créateur du
-  projet)`. ⚠️ Les dépenses sont liées par **FK polymorphe**
-  (`source_content_type` / `source_object_id`) : sous-select sur les ids de projets
-  privés, pas de `select_related`.
-- `apps/interactions/serializers.py` — le masquage, **au singulier**.
-- `apps/projects/apps.py` — `visibility=` sur le spec `project`, et
-  `_project_related` filtré par lecteur.
-- `apps/trackers/apps.py` — déclaration au registre : pas de drapeau propre,
-  héritage seul.
-- `apps/notifications/` — `retract_by_payload` à la privatisation.
-- Front, 4 locales, tutoriel.
+| Fichier | Changement |
+|---|---|
+| `apps/projects/models.py` + `0009` | `Project.is_private` |
+| `apps/projects/visibility.py` | **nouveau** — `hidden_project_ids` (sous-select), `exclude_hidden_projects`, `visible_projects` |
+| `apps/{tasks,trackers,documents}/visibility.py` | **nouveaux** — le `narrow` hérité de chaque enfant, déclaré par son app |
+| `apps/interactions/visibility.py` | l'héritage **et** l'exception de l'argent |
+| `apps/core/visibility.py` | `PrivacySpec.readable` + `readable_for` — voir ≠ lire |
+| `apps/interactions/serializers.py` | le masquage (`REDACTED`, `is_redacted`) |
+| `apps/agent/{retrieval,tools}.py` | l'illisible n'est ni cité, ni rendu par `get_entity`, ni nommé dans `list_entities` — mais **compté** dans `sum_amount` |
+| `apps/projects/services.py` | `foreign_content_counts`, `assert_can_privatise` (400 nommé), `retract_notifications_for` |
+| `apps/projects/serializers.py` | la garde au `validate`, la rétractation à l'`update`, `projects_count` par lecteur |
+| `apps/{projects,trackers}/views.py` | `narrow_for` |
+| Front | contrôle dans le formulaire, pastille sur la carte, dépense masquée nommée « Dépense privée », 4 locales, étape de tutoriel |
+
+### Le concept que ce lot a dû introduire
+
+**Voir qu'une ligne existe et lire ce qu'elle dit sont deux questions.** Pour presque
+tout, elles ont la même réponse — ce qu'on ne peut pas lire, on ne le voit pas, et
+`narrow` suffit. L'argent est l'exception : une dépense reste dans la liste parce que
+sept agrégations la lisent, mais son sujet auto-généré est `"Achat — {titre du
+chantier}"`. Sans cette seconde question, privatiser un chantier aurait fait fuiter
+son titre en clair dans la liste des dépenses, dans la ligne bancaire rapprochée
+**et** dans les citations de l'assistant — c'est-à-dire partout sauf là où on venait
+de le cacher.
+
+D'où `PrivacySpec.readable` / `core.visibility.readable_for`, introduits **avec leur
+producteur et leurs quatre consommateurs dans le même diff** — exactement ce que le
+lot 2 s'était engagé à faire plutôt que de poser un champ mort par anticipation.
+
+### Trois défauts attrapés par les tests pendant l'écriture
+
+1. **Le viewset des trackers n'était pas branché.** Le spec était déclaré, la
+   restriction écrite — et la liste servait quand même les trackers d'un chantier
+   privé. Déclarer ne suffit pas si personne n'applique.
+2. **Le piège du `NULL`.** `exclude(project__in=…)` sur un champ nullable : en SQL,
+   `NOT (project_id IN (…))` vaut NULL — donc « faux » — pour une ligne sans projet.
+   Écrit à la main avec un `~Q(...)`, ce filtre aurait fait disparaître **toutes les
+   tâches sans chantier**. Le symptôme, une liste vide, ne ressemble pas du tout à un
+   problème de confidentialité. Régression : `TestAnItemWithoutAProjectStaysVisible`.
+3. **`TASK_COMPLETED` n'existe pas.** Un type de notification inventé de bonne foi.
+   `retract_by_payload` ne lève pas sur un type inconnu : il ne matche rien, et la
+   rétractation serait devenue un no-op silencieux.
+
+### Régressions
+
+- `projects/tests/test_private_project.py` — la cascade sur cinq enfants, l'arrêt aux
+  zones, le piège du NULL, l'aller-retour (une tâche privée à titre propre le reste),
+  la tâche assignée qui garde son assignation, le refus nommé, les compteurs.
+- `projects/tests/test_private_money_agrees.py` — **le test qui compte.**
+- `core/tests/test_privacy_isolation.py` — `Project` au catalogue, `Tracker` déclaré
+  comme confidentialité **héritée** (aucun drapeau à inspecter : c'est ce que le
+  registre du lot 2 existait pour rendre visible).
+- `agent/tests/test_private_visibility.py` — l'argent compté sans être nommé.
+
+⚠️ **Collision de migration connue.** `projects/0009_project_is_private` (ce lot) et
+`projects/0009_project_default_budget` (PR #675, parcours 32) dépendent toutes deux de
+`0008`. Une fois les deux mergées, `projects` aura deux nœuds feuilles. Celui qui merge
+en second renumérote en `0010` et repointe `dependencies`. Signalé par la session
+`house-76`, vérifié depuis les deux branches.
 
 **Le test qui compte** : la barre du budget, `coverage_ratio`, `Project.actual_cost`
 et le bilan mensuel donnent le **même** chiffre aux deux lecteurs, avant et après la

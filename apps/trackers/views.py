@@ -12,6 +12,7 @@ from rest_framework.pagination import LimitOffsetPagination
 from django_filters.rest_framework import DjangoFilterBackend
 
 from core.permissions import IsHouseholdMember
+from core.visibility import narrow_for
 
 from . import services
 from .models import Tracker, TrackerEntry
@@ -48,6 +49,10 @@ class TrackerViewSet(viewsets.ModelViewSet):
         )
         if self.request.household:
             qs = qs.filter(household=self.request.household)
+        # Un tracker hérite de la confidentialité de son chantier — il n'a pas de
+        # drapeau propre. Déclaré dans ``trackers.apps``, appliqué ici comme
+        # partout ailleurs.
+        qs = narrow_for(qs, self.request.user)
 
         params = self.request.query_params
         if params.get('include_archived') not in ('1', 'true'):

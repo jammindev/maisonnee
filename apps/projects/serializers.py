@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from core.visibility import narrow_for
 from zones.models import Zone
 
 from .models import (
@@ -11,7 +12,12 @@ from .models import (
     UserPinnedProject,
 )
 from .assistant import MAX_NOTES, MAX_QUESTIONS, MAX_TASKS
-from .services import project_actual_cost, project_tab_counts
+from .services import (
+    assert_can_privatise,
+    project_actual_cost,
+    project_tab_counts,
+    retract_notifications_for,
+)
 
 
 class ProjectPurchaseSerializer(serializers.Serializer):
@@ -59,7 +65,12 @@ class ProjectGroupSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "household", "created_at", "updated_at", "created_by", "updated_by"]
 
     def get_projects_count(self, obj):
-        return obj.projects.count()
+        # Par lecteur, comme ``tab_counts`` : un groupe qui annonce « 4 chantiers »
+        # et en montre 3 trahit l'existence du quatrième à qui sait soustraire, et
+        # hors argent « privé » veut dire absent **sans trace**.
+        request = self.context.get("request")
+        viewer = request.user if request and request.user.is_authenticated else None
+        return narrow_for(obj.projects.all(), viewer).count()
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -104,6 +115,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "project_group",
             "project_group_name",
             "type",
+            "is_private",
             "is_pinned",
             "zones",
             "zone_ids",
@@ -148,6 +160,20 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_project_group_name(self, obj):
         return obj.project_group.name if obj.project_group else None
 
+    def validate(self, attrs):
+        """Refuser de privatiser un chantier qui contient le travail d'un autre.
+
+        Le contrôle vit ici et pas dans la vue : c'est la seule couche que le PATCH
+        générique, l'action dédiée et l'agent traversent tous les trois.
+        """
+        attrs = super().validate(attrs)
+        becomes_private = attrs.get("is_private")
+        already_private = self.instance.is_private if self.instance else False
+        if becomes_private and not already_private and self.instance is not None:
+            request = self.context.get("request")
+            assert_can_privatise(self.instance, getattr(request, "user", None))
+        return attrs
+
     def create(self, validated_data):
         zone_ids = validated_data.pop("zone_ids", None)
         project = super().create(validated_data)
@@ -157,9 +183,16 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         zone_ids = validated_data.pop("zone_ids", None)
+        was_private = instance.is_private
         project = super().update(instance, validated_data)
         if zone_ids is not None:
             self._sync_zones(project, zone_ids)
+        if project.is_private and not was_private:
+            # Une annonce ne survit pas à son sujet. Le chantier n'est pas supprimé,
+            # il devient invisible à tous sauf un : une cloche « Bob a créé Poser le
+            # bardage » qui mène désormais à un écran vide ferait chercher au lecteur
+            # ce que l'app vient de lui cacher.
+            retract_notifications_for(project)
         return project
 
     def _sync_zones(self, project, zone_ids):

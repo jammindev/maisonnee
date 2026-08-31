@@ -23,6 +23,10 @@ def _project_related(project):
     items.extend(project.tasks.all())
     items.extend(pz.zone for pz in project.project_zones.select_related("zone"))
     return items
+    # Note : rien n'est filtré par lecteur ici, et c'est volontaire —
+    # ``retrieval.filter_visible_instances`` s'en charge en aval, groupé par type,
+    # donc une requête par type présent au lieu d'une par item. Le filtrer deux fois
+    # coûterait des requêtes sans rien fermer de plus.
 
 
 class ProjectsConfig(AppConfig):
@@ -31,7 +35,14 @@ class ProjectsConfig(AppConfig):
 
     def ready(self):
         from agent.searchables import SearchableSpec, register
+        from core.visibility import PrivacySpec, register as register_privacy
         from .models import Project
+        from .visibility import visible_projects
+
+        # Confidentialité — le chantier a son propre drapeau ; ce qu'il contient en
+        # hérite, déclaré par chaque app enfant (tasks, interactions, documents,
+        # trackers). Les zones, jamais : une pièce de la maison est structurelle.
+        register_privacy(PrivacySpec(model=Project, narrow=visible_projects))
 
         register(SearchableSpec(
             entity_type='project',

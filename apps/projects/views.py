@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from app_settings import capabilities
 from core.permissions import IsHouseholdMember
+from core.visibility import narrow_for
 from documents.mixins import DocumentLinkActionsMixin
 from interactions.services import create_expense_interaction, validate_expense_budget
 from .assistant import next_step
@@ -40,7 +41,11 @@ class _HouseholdScopedViewSet(viewsets.ModelViewSet):
         selected_household = self.request.household
         if selected_household:
             queryset = queryset.filter(household=selected_household)
-        return queryset
+        # Confidentialité — le point d'application unique. Sur ``Project`` c'est le
+        # drapeau propre ; sur ``ProjectGroup``, qui n'en a pas, ``narrow_for``
+        # renvoie le queryset intact (« pas de spec » = le scope foyer est toute la
+        # règle), donc la même ligne sert aux deux vues sans condition.
+        return narrow_for(queryset, self.request.user)
 
     def perform_create(self, serializer):
         household = self.request.household

@@ -31,6 +31,69 @@ from core.visibility import visible_to_creator
 MONEY_IS_NEVER_HIDDEN = Q(type="expense")
 
 
+def _belongs_to_a_hidden_project(viewer) -> Q:
+    """Les interactions dont la source est un chantier que ``viewer`` ne voit pas."""
+    from django.contrib.contenttypes.models import ContentType
+
+    from projects.models import Project
+    from projects.visibility import hidden_project_ids
+
+    # ``get_for_model`` est appelé ici et pas au chargement du module : les
+    # ContentType vivent en base, et les toucher à l'import casse les migrations
+    # sur une base vierge.
+    return Q(
+        source_content_type=ContentType.objects.get_for_model(Project),
+        source_object_id__in=hidden_project_ids(viewer),
+    )
+
+
 def visible_interactions(queryset, viewer):
-    """Restreindre ``queryset`` aux interactions que ``viewer`` a le droit de lire."""
-    return visible_to_creator(queryset, viewer, never_hidden=MONEY_IS_NEVER_HIDDEN)
+    """Restreindre ``queryset`` aux interactions que ``viewer`` a le droit de lire.
+
+    Deux sources de confidentialité, et la seconde n'écrit rien nulle part : le
+    drapeau propre à l'entrée, et l'héritage d'un chantier privé.
+
+    ⚠️ **L'exception de l'argent vaut pour les deux.** Une dépense de chantier privé
+    reste servie comme une dépense privée l'est : elle alimente sept agrégations, et
+    la faire disparaître d'une liste sans la retirer des totaux donnerait deux
+    définitions au même compteur. Ce qui la protège, c'est le **masquage** de son
+    contenu par ``InteractionSerializer`` — sujet, fournisseur et chantier source
+    remplacés par « Dépense privée ». Sans quoi le titre du chantier fuirait en clair :
+    le sujet auto-généré d'un achat de projet est ``"Achat — {titre du chantier}"``.
+    """
+    visible = visible_to_creator(queryset, viewer, never_hidden=MONEY_IS_NEVER_HIDDEN)
+    return visible.exclude(_belongs_to_a_hidden_project(viewer) & ~Q(type="expense"))
+
+
+def interaction_is_readable(interaction, viewer) -> bool:
+    """Le contenu de cette interaction est-il lisible par ``viewer`` ?
+
+    Ne concerne en pratique que les **dépenses** : tout le reste, ``narrow`` le fait
+    déjà disparaître, donc la question ne se pose pas. Une dépense, elle, reste dans
+    la liste — et son sujet est ``"Achat — {titre du chantier}"``. Sans cette
+    seconde question, privatiser un chantier aurait fait fuiter son titre en clair
+    dans la liste des dépenses, dans la ligne bancaire rapprochée et dans les
+    citations de l'assistant, c'est-à-dire partout sauf là où on l'avait caché.
+    """
+    if viewer is not None and getattr(viewer, "is_authenticated", True):
+        if interaction.created_by_id == getattr(viewer, "pk", None):
+            return True
+
+    if interaction.is_private:
+        return False
+
+    # Héritage : la dépense d'un chantier que ce lecteur ne voit pas. À ce point
+    # ``is_private`` est faux — une entrée sans chantier source est donc lisible.
+    if interaction.source_content_type_id is None or interaction.source_object_id is None:
+        return True
+
+    from django.contrib.contenttypes.models import ContentType
+
+    from projects.models import Project
+
+    if interaction.source_content_type_id != ContentType.objects.get_for_model(Project).pk:
+        return True
+    return not Project.objects.filter(
+        pk=interaction.source_object_id, is_private=True
+    ).exists()
+

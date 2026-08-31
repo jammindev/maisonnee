@@ -33,6 +33,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
+from core import visibility as core_visibility
+
 from . import listables, query_expansion, retrieval, searchables, writables
 from .modules import spec_disabled
 from .llm import LLMClient, get_llm_client
@@ -273,6 +275,14 @@ def resolve_entity(entity_type: str, raw_id: str, household, viewer=None):
         return None, ToolResult(rendered=f"(invalid id for {entity_type}: {raw_id})")
 
     if obj is None:
+        return None, ToolResult(
+            rendered=f"(no {entity_type} found with id {raw_id} in this household)"
+        )
+    # Visible ne veut pas dire lisible : une dépense de chantier privé reste dans
+    # le queryset (sept agrégations la lisent) mais son contenu nomme le chantier.
+    # La réponse est la même que pour ce qui n'existe pas — dire « il y a quelque
+    # chose, mais tu ne peux pas le lire » est déjà une information de trop.
+    if not core_visibility.readable_for(obj, viewer):
         return None, ToolResult(
             rendered=f"(no {entity_type} found with id {raw_id} in this household)"
         )
@@ -822,6 +832,15 @@ def _list_entities_handler(
     lines: list[str] = []
     for obj in items:
         search_spec = searchables.find_spec(entity_type) or searchables.find_spec_for_instance(obj)
+        # ⚠️ La somme du dessus porte sur **tout** le jeu filtré, y compris ce que
+        # ce lecteur ne peut pas lire — c'est voulu : une dépense de chantier privé
+        # compte dans le total du foyer, sinon l'assistant et la barre de budget
+        # donneraient deux chiffres. Mais la **ligne**, elle, ne peut pas la nommer :
+        # son sujet est « Achat — <titre du chantier> ». Le montant est partagé, le
+        # nom ne l'est pas.
+        if not core_visibility.readable_for(obj, user):
+            lines.append(f"- id={entity_type}:{obj.pk} | (private to another member)")
+            continue
         if search_spec is not None:
             hit = retrieval.hit_from_instance(search_spec, obj)
             hits.append(hit)

@@ -6,6 +6,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
+from core.visibility import readable_for
 from core.serializers import (
     HouseholdScopedPrimaryKeyRelatedField as ScopedFK,
 )
@@ -179,6 +180,55 @@ class InteractionSerializer(serializers.ModelSerializer):
             # link / unlink), never by a generic PATCH on the expense.
             'bank_transaction', 'reconciled_by',
         ]
+
+    #: Ce qu'un autre membre lit d'une dépense qu'il voit sans pouvoir la lire.
+    #:
+    #: Le montant, la date et le budget **restent** : ce sont eux qui font que la
+    #: barre de budget et la liste se recomposent, et un total qu'on ne peut pas
+    #: recomposer ne se lit pas. Ce qui part, c'est ce qui **nomme** — le sujet, le
+    #: fournisseur, le chantier source, les notes, les pièces jointes.
+    REDACTED = {
+        "subject": "",
+        "content": "",
+        "supplier": "",
+        "source_type": None,
+        "source_id": None,
+        "source_label": None,
+        "metadata": {},
+        "enriched_text": "",
+        "document_count": 0,
+        "linked_document_ids": [],
+        "contacts": [],
+        "structures": [],
+        "equipments": [],
+        "tags": [],
+        "bank_line": None,
+        "zone_names": [],
+        "zone_id_list": [],
+    }
+
+    def to_representation(self, instance):
+        """Masquer le contenu d'une dépense que le lecteur voit sans pouvoir la lire.
+
+        **Masquer, pas cacher** — la distinction est du métier. Une dépense de
+        chantier privé reste dans la liste et dans les sept agrégations qui la
+        lisent : l'en retirer donnerait à la barre de budget deux valeurs selon le
+        lecteur. Mais son sujet auto-généré est ``"Achat — {titre du chantier}"``,
+        donc la laisser entière ferait fuiter en clair ce qu'on venait de cacher.
+
+        ⚠️ Le drapeau ``is_redacted`` est renvoyé pour que le front sache **qu'il
+        manque quelque chose** plutôt que d'afficher une ligne vide : un sujet vide
+        ressemble à une saisie bâclée, pas à un secret. Le libellé lui-même vit dans
+        le namespace i18n du front — ajouter un masquage ne doit pas imposer un
+        passage dans quatre ``.po``.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        viewer = getattr(request, "user", None) if request else None
+        if readable_for(instance, viewer):
+            data["is_redacted"] = False
+            return data
+        return {**data, **self.REDACTED, "is_redacted": True}
 
     def get_fields(self):
         """``type`` se choisit à la création, et jamais plus.

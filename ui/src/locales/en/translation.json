@@ -1545,6 +1545,10 @@
           "budget": {
             "title": "Track the budget",
             "body": "Linked expenses feed the actual cost, automatically compared to the budget."
+          },
+          "privacy": {
+            "title": "Keep a project to yourself",
+            "body": "“Private” keeps the project to you alone — along with its tasks, notes, documents and trackers. Its zones stay shared: a room of the house is not a secret. Its expenses still count towards the household budgets, but say nothing: others see an amount, not what it bought. A project that already holds another member's work cannot be made private — the app refuses rather than quietly taking it away from them."
           }
         }
       },
@@ -3015,7 +3019,8 @@
         "save": "Save changes",
         "saving": "Saving...",
         "cancel": "Cancel"
-      }
+      },
+      "privateHint": "This project's tasks, notes, expenses, documents and trackers become private with it. Its zones stay shared."
     },
     "groups": {
       "title": "Project groups",
@@ -4850,6 +4855,7 @@
     "private": "Private",
     "privateHint": "Only me",
     "taskUnassigns": "A private task cannot be assigned: the assignee will be removed.",
-    "documentOwnerOnly": "Only the person who uploaded a document can change its visibility."
+    "documentOwnerOnly": "Only the person who uploaded a document can change its visibility.",
+    "redactedExpense": "Private expense"
   }
 }
