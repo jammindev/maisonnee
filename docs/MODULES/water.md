@@ -22,70 +22,77 @@
 - **Pas de table dérivée** : contrairement à l'électricité (`ConsumptionRecord` régénéré à chaque écriture), la consommation eau est **calculée à la volée** dans `services.consumption_summary` — les relevés sont date-only et peu nombreux, un recalcul par requête est trivial. Même contrat de proratisation : le delta entre deux relevés consécutifs est réparti sur `[date_prev, date_curr)` en litres entiers avec arrondi cumulatif (la somme des parts vaut exactement le delta).
 - **Litres entiers dans l'API** (`total_l`), conversion m³ côté UI — miroir exact du contrat Wh/kWh de l'électricité.
 - **Source de vérité des écritures** : `apps/water/services.py` — `create_water_reading` / `update_water_reading` passent par `WaterReadingSerializer` ; le viewset (`perform_create`/`perform_update`) **et** les handlers agent appellent ces services. Le delete n'a pas de service (aucun état dérivé à rafraîchir).
-- **Granularités** : `day|month|year` seulement — pas de vue horaire (relevés date-only).
+- **Granularités** : l'API accepte `day|month|year` ; la **page** n'offre que `month|year` (#682, voir plus bas).
 
 ## Réutilisation frontend (extraite à l'occasion de ce module)
 
-- `ui/src/components/charts/ConsumptionBarChart.tsx` : **chart générique partagé** (barres empilées Recharts, séries paramétrées `{key,label,color}`, unité paramétrée) — consommé par `electricity/ConsumptionChart.tsx` (wrapper cadrans/kWh) et par les trois écrans de la famille argent. **L'eau ne l'utilise plus** depuis #678, voir juste en dessous.
+- `ui/src/components/charts/ConsumptionBarChart.tsx` : **chart générique partagé** (barres empilées Recharts, séries paramétrées `{key,label,color}`, unité paramétrée) — consommé par `electricity/ConsumptionChart.tsx` (wrapper cadrans/kWh) et par les trois écrans de la famille argent. **L'eau ne l'utilise plus** depuis #678 : elle a besoin d'une notion d'estimation que les quatre autres écrans n'ont pas à porter. Voir juste en dessous.
 - `ui/src/lib/period.ts` : helpers de fenêtre de période (`isoDate`, `periodRange`, `shiftAnchor`, `periodLabel`) extraits de `ConsumptionTab` — partagés eau/électricité.
 - Clés i18n partagées `consumption.*` (granularity, previousPeriod, nextPeriod, overPeriod, noData) — déplacées depuis `electricity.consumption.*`.
 - Page : pattern standard Feature page (PageHeader, FilterPill + `useSessionState`, skeleton `useDelayedLoading`, EmptyState, `useDeleteWithUndo`).
 
-## Le graphe — un débit en marches, jamais des barres (#678)
+## Le graphe — des barres mensuelles, et l'estimé se voit (#678 puis #682)
 
-`WaterRateChart` + `rateCurve.ts` (fonctions pures, testées sans rendu — même
-découpage que `stock/levelCurve.ts`).
+`WaterVolumeChart` + `waterSeries.ts` (fonctions pures, testées sans rendu).
 
-**Le défaut corrigé.** La page affichait des barres quotidiennes issues de la
-proratisation de `consumption_summary`. En granularité `jour` (celle par défaut,
-fenêtre = un mois), un foyer qui relève son compteur une fois par mois voyait
-**30 barres strictement identiques** — 333 ou 334 litres, le litre d'écart étant
-du bruit d'arrondi cumulatif. Trente observations dessinées pour **une** mesure.
-La proratisation reste juste pour un **total** ; c'est la grammaire des barres
-qui ment, puisqu'une barre annonce une quantité mesurée discrète. L'électricité a
-de vraies données infra-journalières (import Enedis), l'eau n'a que des relevés
-manuels espacés et irréguliers : **le même graphe ne pouvait pas servir les deux.**
+**Le défaut d'origine (#678).** La page affichait des barres **quotidiennes**
+issues de la proratisation de `consumption_summary`. Un foyer qui relève son
+compteur une fois par mois voyait **30 barres strictement identiques** — 333 ou
+334 litres, le litre d'écart étant du bruit d'arrondi cumulatif. Trente
+observations dessinées pour **une** mesure.
 
-C'est le défaut déjà corrigé sur le stock (`StockLevelChart`, #622, qui
-remplaçait les barres de #575) — et le raisonnement s'énonce pareil : *un relevé
-dit quel est l'index, jamais quand l'eau a coulé.*
+**La correction qui a raté (#679), et pourquoi elle a raté.** Le premier
+correctif a remplacé les barres par une courbe de débit en marches (L/jour) :
+plus juste sur la résolution, et **nettement moins lisible**. Un trait de 2px sur
+un axe 0–1000 n'a aucune matière visuelle, et « 331 L/jour » n'est pas la
+question qu'on se pose devant sa facture — un foyer pense en m³ par mois. La
+leçon vaut au-delà de cet écran : **une lecture correcte que personne ne fait ne
+vaut pas mieux qu'une lecture fausse.** L'analyse avait cadré les trois formes
+proposées sur l'honnêteté de la résolution, et aucune sur la lisibilité.
+
+**Ce qui était vraiment coupable : la journée, pas la barre.** Un mois agrège un
+vrai laps de temps, ses hauteurs diffèrent, personne ne lit « avril = 10 m³ »
+comme une mesure indépendante d'avril, et c'est l'unité de la facture. Le module
+avait déjà écarté l'heure à sa création avec exactement cet argument ; le jour
+part pour la même raison. `WaterChartGranularity` = `month | year`.
 
 **Ce que le tracé garantit, et pourquoi :**
 
-- **Un escalier (`stepAfter`), pas une droite.** Entre deux relevés on ne connaît
-  qu'un débit *moyen*, constant par construction. Une pente laisserait lire une
-  tendance qu'aucun relevé n'atteste. C'est le raisonnement de `BalanceLineChart`
-  (« un solde tient jusqu'à ce que quelque chose le bouge ») et non celui de
-  `StockLevelChart`, où interpoler est honnête parce qu'un stock se vide en continu.
-- **Un débit (L/jour), pas un volume.** Les relevés sont irréguliers : une barre
-  par intervalle rendrait 22 m³ en trois mois et 22 m³ en un mois à la même
-  hauteur, alors que le second est un débit trois fois supérieur. Ramener au jour
-  est la seule normalisation qui compare des intervalles de durées différentes
-  sans mentir. Le volume reste dans le titre de la carte et dans l'infobulle.
-- **Les relevés portent une pastille, le reste non.** Les points sont les faits ;
-  le palier entre deux points est une moyenne, et doit se lire comme telle.
-- **Le dernier relevé ferme son palier.** Les intervalles sont mi-ouverts, donc un
-  relevé intermédiaire appartient à celui qu'il *ouvre* (la marche tombe pile sur
-  lui). Le tout dernier n'ouvre rien : sans point à sa date, la ligne s'arrêtait la
-  veille et **le relevé le plus récent — celui qu'on vient de saisir — n'avait pas
-  de pastille.** `coveredDays` reste mi-ouvert de son côté : compter des jours et
-  fermer un segment sont deux questions, elles ont deux fonctions.
-- **Un trou reste un trou.** Hors de tout intervalle la ligne s'interrompt
-  (`connectNulls={false}`) au lieu de retomber à zéro : « on ne sait pas » et
-  « rien consommé » ne sont pas la même phrase. Quatrième occurrence de la règle du
-  vide qui n'est pas une valeur (`inflow_nature`, `Document.purpose`, parcours 26).
-- **Les graduations sont calculées, pas déduites.** La grille est quotidienne (pour
-  que l'axe respecte la durée réelle des intervalles) ; laisser recharts choisir
-  afficherait « avr. » une fois par jour visible sur une fenêtre d'un an.
-- **L'overlay météo s'aligne au jour** (`pointGranularity: 'day'`), tout en restant
-  *borné* par la fenêtre : c'est elle qui décide de la taille du fetch, pas la
-  résolution des points. Sans ce découplage, chaque jour d'un mois recevait la
-  moyenne du mois — une ligne de température en escalier, que l'archive ne dit pas.
+- **Une barre qu'aucun relevé ne traverse est une estimation**, dessinée en aplat
+  clair, et l'infobulle nomme les deux relevés dont elle est étalée. C'est ce qui
+  garde les barres honnêtes sans les rendre illisibles — sans ce marqueur on
+  retomberait sur le défaut de #678, une division présentée avec la grammaire
+  d'une observation.
+- **Une période partiellement couverte se signale aussi** (début ou fin de série).
+  Sans ça un mois entamé le 5 se lit comme un mois économe, alors que la barre est
+  simplement plus basse que la réalité.
+- **`qualifyBuckets` ne recalcule jamais le volume** : il vient du serveur, seule
+  définition du consommé. Deux définitions d'un même compteur divergent toujours,
+  et c'est l'utilisateur qui arbitre. On ne fait que **qualifier**.
+- **`coveredDays` borne la moyenne** : diviser le total par la largeur de la
+  fenêtre annoncerait un débit trop faible dès qu'un bout de mois n'est pas relevé.
+- **Pas de `cursor` d'infobulle.** Dans un `ComposedChart`, recharts le rend en
+  trait vertical — l'affordance d'une courbe, pas d'un histogramme. C'est la barre
+  survolée qui se souligne (`activeBar`), ce qui préserve en plus son opacité, donc
+  la distinction mesuré / estimé.
+- **`maxBarSize`** : sans borne, une année seule s'étire sur toute la largeur de la
+  carte, et une barre unique de 640px ne se lit plus comme une barre.
 
-Régressions : `ui/src/features/water/rateCurve.test.ts` (16 cas) et
-`ui/src/features/weather/overlay.test.ts`. Les trois pastilles `jour|mois|année`
-restent des **sélecteurs de fenêtre** (un mois / un an / une décennie) — c'est déjà
-ce que faisait `periodRange`, le bucketing n'en était qu'un effet de bord.
+**La liste des relevés dit l'intervalle, pas l'index.** Elle affichait
+« 1104,3 m³ », l'index brut : ce nombre ne se compare qu'au relevé précédent, et
+c'est justement cette soustraction qu'on demandait au lecteur de faire de tête.
+Chaque ligne porte donc le volume et le débit de l'intervalle qui s'y achève ;
+l'index reste en retrait, parce que c'est lui qu'on relit sur le compteur. La
+ligne reste **le relevé** et non l'intervalle — éditer et supprimer agissent sur
+un objet, et un intervalle n'en est pas un.
+
+**`WaterGranularity` reste plus large que `WaterChartGranularity`** : l'API
+accepte toujours `day`, dont `dashboard/WaterCard` se sert pour sa sparkline sur
+30 jours. Cette sparkline porte le même défaut en miniature (elle est plate quand
+les relevés sont mensuels) — hors périmètre de #682 — suivi en #683.
+
+Régressions : `ui/src/features/water/waterSeries.test.ts` (13 cas, dont la
+qualification mesuré / estimé / partiel) et `ui/src/features/weather/overlay.test.ts`.
 
 ## Agent (`apps/water/apps.py::ready()`)
 

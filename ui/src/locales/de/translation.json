@@ -471,14 +471,19 @@
       "indexM3": "Zählerstand (m³)",
       "readingDate": "Ablesedatum",
       "indexRequired": "Datum und Zählerstand sind erforderlich.",
-      "recentTitle": "Letzte Ablesungen"
+      "recentTitle": "Letzte Ablesungen",
+      "since": "seit dem {{date}}",
+      "first": "erste Ablesung",
+      "index": "Stand {{value}} m³"
     },
     "chart": {
+      "volume": "Verbrauch",
       "rate": "Verbrauchsrate",
       "rateUnit": "L/Tag",
-      "rateUnitShort": "L/T",
-      "intervalDetail": "{{volume}} m³ über {{days}} Tage abgelesen",
-      "noReadingHere": "Für dieses Datum liegt keine Ablesung vor.",
+      "estimatedFrom": "Geschätzt: keine Ablesung in diesem Monat, verteilt zwischen dem {{from}} und dem {{to}}.",
+      "partialPeriod": "Teilweise abgedeckter Zeitraum: er beginnt oder endet außerhalb Ihrer Ablesungen.",
+      "legendEstimated": "geschätzt",
+      "legendPartial": "unvollständiger Zeitraum",
       "needsTwoReadings": "Für eine Verbrauchsberechnung sind zwei Ablesungen nötig.",
       "averageRate": "das sind durchschnittlich {{rate}} {{unit}}"
     }

@@ -471,14 +471,19 @@
       "indexM3": "Index (m³)",
       "readingDate": "Reading date",
       "indexRequired": "Date and index are required.",
-      "recentTitle": "Latest readings"
+      "recentTitle": "Latest readings",
+      "since": "since {{date}}",
+      "first": "first reading",
+      "index": "index {{value}} m³"
     },
     "chart": {
+      "volume": "Usage",
       "rate": "Usage rate",
       "rateUnit": "L/day",
-      "rateUnitShort": "L/d",
-      "intervalDetail": "{{volume}} m³ measured over {{days}} days",
-      "noReadingHere": "No reading covers this date.",
+      "estimatedFrom": "Estimated: no reading this month, spread between those of {{from}} and {{to}}.",
+      "partialPeriod": "Partially covered period: it starts or ends outside your readings.",
+      "legendEstimated": "estimated",
+      "legendPartial": "incomplete period",
       "needsTwoReadings": "Two readings are needed to work out consumption.",
       "averageRate": "that is {{rate}} {{unit}} on average"
     }
