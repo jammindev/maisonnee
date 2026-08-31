@@ -204,6 +204,11 @@ export interface ProjectInteractionItem {
   content: string;
   type: string;
   occurred_at: string;
+  /**
+   * Montant d'une dépense — colonne de premier niveau depuis le refactor
+   * « dépenses en colonnes ». Absent sur une note ou une entrée de fil.
+   */
+  amount?: string | null;
   /** Sur une dépense : est-ce qu'une ligne de relevé la justifie (verdict serveur). */
   reconciliation_state?: ReconciliationState;
   bank_line?: BankLineRef | null;

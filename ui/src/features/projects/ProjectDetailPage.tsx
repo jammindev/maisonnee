@@ -129,7 +129,17 @@ function TabInteractions({
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-medium">{item.subject || '—'}</span>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Le coût réel affiché en tête de fiche est la somme de ces
+                        lignes : sans le montant sur chacune, le total ne se
+                        vérifie pas et une saisie à 1 000 € au lieu de 100 € ne
+                        se repère nulle part. Même rendu que l'historique d'un
+                        équipement, qui le disait déjà. */}
+                    {item.amount ? (
+                      <span className="text-xs font-medium text-foreground">
+                        {formatAmount(item.amount)}
+                      </span>
+                    ) : null}
                     {/* Une dépense de chantier saisie à la main est aussi une
                         dépense que la banque n'a peut-être jamais vue passer. */}
                     <ReconciliationBadge
