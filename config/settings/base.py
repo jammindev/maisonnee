@@ -3,6 +3,7 @@
 Base settings for house backend.
 """
 from pathlib import Path
+import os
 import sys
 
 import environ
@@ -467,3 +468,46 @@ TELEGRAM_LINK_TOKEN_MAX_AGE_SECONDS = 15 * 60
 # Per-chat cooldown between agent questions — a burst of messages costs one
 # LLM call, the rest get a "slow down" reply.
 TELEGRAM_COOLDOWN_SECONDS = 5
+
+
+# --- Journalisation ---------------------------------------------------------
+# **Une exception non rattrapée doit laisser sa traceback.** Sans config
+# explicite, Django applique la sienne : son handler console est filtré par
+# `require_debug_true`, et le seul handler restant en production est
+# `mail_admins`, qui exige des ADMINS et un SMTP. Un 500 en prod ne laissait
+# donc **rien** — juste la ligne d'accès gunicorn — et le défaut n'était pas
+# diagnosticable depuis le serveur : c'est ce qui a fait vivre en production un
+# envoi de document qui répondait « échec » sur un document bien créé.
+#
+# Tout part sur stdout, que Docker capture : `docker compose logs web`.
+# `LOG_LEVEL` permet de passer à DEBUG ponctuellement sans redéployer d'image.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "{levelname} {asctime} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.environ.get("LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        # La traceback des 500 vit ici, et nulle part ailleurs.
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        # Le SQL ne sort qu'à la demande : à INFO il noierait tout le reste.
+        "django.db.backends": {"level": "WARNING"},
+    },
+}
