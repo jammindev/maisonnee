@@ -403,7 +403,7 @@ def _reply_not_linked(chat_id: int, message: dict) -> None:
         get_client().send_message(
             chat_id,
             _(
-                "This Telegram account is not linked to House yet. "
+                "This Telegram account is not linked to Maisonnée yet. "
                 "Open the app settings and tap “Connect Telegram”."
             ),
         )

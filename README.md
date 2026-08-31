@@ -55,7 +55,7 @@ so it already knows the context before you start typing.
 ## Install it in three lines
 
 ```bash
-curl -O https://raw.githubusercontent.com/jammindev/house/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/jammindev/maisonnee/main/docker-compose.yml
 docker compose up -d
 open http://localhost:8000
 ```

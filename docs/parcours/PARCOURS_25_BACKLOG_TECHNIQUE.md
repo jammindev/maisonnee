@@ -16,7 +16,7 @@
 
 ## Tableau de bord
 
-**Issue parente : [#383](https://github.com/jammindev/house/issues/383)** — à fermer une fois tous les lots livrés et la recette faite.
+**Issue parente : [#383](https://github.com/jammindev/maisonnee/issues/383)** — à fermer une fois tous les lots livrés et la recette faite.
 
 | Lot | Sujet | Statut | Issue |
 |---|---|---|---|

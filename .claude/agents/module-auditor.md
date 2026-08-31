@@ -32,7 +32,7 @@ The user will give you a module name. It's typically a Django app under `apps/<n
    - `ui/src/gen/api/` — types générés à jour ?
 
 3. **Docs croisées** :
-   - **GitHub issues** (source unique de vérité) : `gh issue list --repo jammindev/house --state open --label "app:<name>" --json number,title,body,labels`
+   - **GitHub issues** (source unique de vérité) : `gh issue list --repo jammindev/maisonnee --state open --label "app:<name>" --json number,title,body,labels`
    - `docs/parcours/PARCOURS_*.md` — y a-t-il des items du backlog pour ce module ?
    - `docs/JOURNAL_PRODUIT.md`
 

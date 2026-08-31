@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 /**
  * Parcours 18 — Lot 2 : achat enrichi (marque + quantité restante) et inventaire.
  *
- * Issue: https://github.com/jammindev/house/issues/289
+ * Issue: https://github.com/jammindev/maisonnee/issues/289
  * Vérifie qu'un achat avec « quantité restante avant achat » recale le stock
  * (restant + delta) et que la marque remonte dans l'historique, puis qu'un
  * inventaire en valeur absolue met à jour la quantité.

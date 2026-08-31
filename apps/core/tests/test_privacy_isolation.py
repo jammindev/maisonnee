@@ -20,8 +20,8 @@ personne ne l'a vu, parce que le défaut est invisible deux fois :
 D'où la forme : le test ne vérifie pas trois vues, il vérifie **la règle**, et
 refuse qu'un cinquième modèle privatisable arrive sans se déclarer.
 
-Les trois parties sont nécessaires
-----------------------------------
+Les quatre parties sont nécessaires
+-----------------------------------
 
 1. **Structurelle** — aucune vue n'expose ``is_private`` en filtre. Sans ce
    contrôle, la partie n°2 se laisse contourner : le queryset a beau borner, un
@@ -31,6 +31,18 @@ Les trois parties sont nécessaires
    C'est le seul contrôle qui compare le *code* à ce que l'API sert vraiment.
 3. **Complétude** — un modèle portant le drapeau doit être couvert ou exempté.
    Sans elle, les deux premières restent vertes en ignorant le nouveau venu.
+4. **La déclaration** — un modèle privatisable est enregistré dans
+   ``core.visibility.REGISTRY``. Les trois premières parties ne regardent que les
+   listes REST, et **une liste bornée ne borne pas ⌘K** : la palette du haut,
+   ``search_household``, ``get_entity``, ``get_related``, ``list_entities`` et le
+   contexte ancré ne passent jamais par le viewset. Une seule déclaration les
+   ferme toutes, parce que toutes appellent ``narrow_for``. La restriction a
+   d'abord vécu sur le ``SearchableSpec`` de l'agent, et un seul spec sur quatre
+   la déclarait — la tâche privée d'un membre était donc absente de sa liste et
+   citable par l'assistant. Elle a été déplacée vers le registre parce que lier
+   la confidentialité au fait d'être *cherchable* laissait deux trous : un modèle
+   privatisable non searchable (``Briefing``) n'avait nulle part où se déclarer,
+   et une confidentialité **héritée** ne porte aucun champ à inspecter.
 
 Limite connue : la partie n°1 lit ``filterset_fields``, pas un éventuel
 ``filterset_class`` (le dépôt n'en utilise aucun). Le jour où l'un apparaît, il
@@ -65,18 +77,18 @@ def _is_project_app(app_config) -> bool:
 # Même convention que ``EXEMPT_FIELDS`` dans ``test_write_isolation`` : une
 # exemption est une dette **nommée**, avec sa raison et ce qui protège à la
 # place. Le silence, lui, ne se relit pas.
+#
+# Le dictionnaire est vide, et c'est un acquis récent : les quatre modèles
+# portant le drapeau sont couverts. ``interactions.Interaction`` y a longtemps
+# figuré, parce que filtrer une dépense supposait d'avoir décidé ce que
+# « dépense privée » veut dire. C'est tranché : l'argent ne **disparaît** jamais
+# d'une liste — sept agrégations le lisent — il se **masque**. La liste borne
+# donc tout sauf les dépenses (``interactions.visibility``), et le masquage de
+# leur contenu est le lot 4 du parcours 33. Voir
+# ``TestAPrivateExpenseIsNeverHidden`` plus bas : le report est un choix écrit,
+# pas un oubli.
 
-EXEMPT_MODELS: dict[str, str] = {
-    "interactions.Interaction": (
-        "Une interaction de type 'expense' alimente interactions.queries.expenses(), "
-        "point de vérité unique de sept agrégations (barre de budget, coverage_ratio, "
-        "Project.actual_cost, bilan mensuel, détecteurs de conformité). La masquer en "
-        "liste sans la retirer des totaux donnerait deux définitions au même compteur — "
-        "exactement ce que CLAUDE.md interdit. Filtrer ici suppose d'avoir décidé ce que "
-        "« dépense privée » veut dire ; tant que ce n'est pas tranché, la porte la plus "
-        "large (le filtre ?is_private=) est fermée par la moitié n°1 de ce fichier."
-    ),
-}
+EXEMPT_MODELS: dict[str, str] = {}
 
 
 def _models_with_is_private():
@@ -207,6 +219,30 @@ class TestAPrivateItemStaysWithItsAuthor:
             client.get(reverse("document-list"), params), "name"
         )
 
+    def test_note(self, duo):
+        from django.utils import timezone
+
+        from interactions.models import Interaction
+
+        household, alice, bob = duo
+        Interaction.objects.create(
+            household=household, created_by=alice,
+            subject="Idée de cadeau pour Bob", type="note", is_private=True,
+            # Contrainte ``interactions_occurred_at_required`` : une entrée de
+            # journal sans date n'est pas une entrée de journal.
+            occurred_at=timezone.now(),
+        )
+
+        client, params = _as(bob, household)
+        assert "Idée de cadeau pour Bob" not in _labels(
+            client.get(reverse("interaction-list"), params), "subject"
+        )
+
+        client, params = _as(alice, household)
+        assert "Idée de cadeau pour Bob" in _labels(
+            client.get(reverse("interaction-list"), params), "subject"
+        )
+
     def test_briefing(self, duo):
         from briefings.models import Briefing
 
@@ -227,6 +263,47 @@ class TestAPrivateItemStaysWithItsAuthor:
         )
 
 
+@pytest.mark.django_db
+class TestAPrivateExpenseIsNeverHidden:
+    """L'exception, et la seule — écrite ici pour qu'on ait à la changer sciemment.
+
+    Une dépense privée reste servie à tout le foyer. Ce n'est pas un trou dans la
+    règle du dessus, c'est l'arbitrage du parcours 33 : ``Interaction(type=
+    "expense")`` alimente ``interactions.queries.expenses()``, point de vérité
+    unique de sept agrégations. La retirer d'une liste sans la retirer des totaux
+    donnerait au budget « Bricolage » deux valeurs selon le lecteur — « un compteur
+    ne peut pas avoir deux définitions ».
+
+    Le secret d'une dépense porte donc sur son **contenu**, pas sur son existence :
+    le lot 4 remplacera sujet, fournisseur et projet source par « Dépense privée »
+    pour les autres membres. Tant que ce masquage n'est pas là, ce test échouera si
+    quelqu'un « corrige » l'exception en la cachant — ce qui est précisément le but.
+    """
+
+    def test_the_other_member_still_sees_the_row(self, duo):
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from interactions.models import Interaction
+
+        household, alice, bob = duo
+        Interaction.objects.create(
+            household=household, created_by=alice,
+            subject="Achat — Terrasse", type="expense", is_private=True,
+            amount=Decimal("250.00"), occurred_at=timezone.now(),
+        )
+
+        client, params = _as(bob, household)
+        subjects = _labels(client.get(reverse("interaction-list"), params), "subject")
+        assert "Achat — Terrasse" in subjects, (
+            "Une dépense privée doit rester servie : sept agrégations la lisent, et "
+            "la cacher en liste sans la retirer des totaux donne deux définitions au "
+            "même compteur. Ce qui doit disparaître pour Bob, c'est le *contenu* — "
+            "voir le lot 4 du parcours 33."
+        )
+
+
 # ── 3. Le catalogue ne peut pas prendre de retard sur le code ────────────────
 
 
@@ -238,7 +315,12 @@ class TestEveryPrivatisableModelIsAccountedFor:
     ajouter un mécanisme, c'est ajouter son détecteur.
     """
 
-    COVERED = {"tasks.Task", "documents.Document", "briefings.Briefing"}
+    COVERED = {
+        "tasks.Task",
+        "documents.Document",
+        "briefings.Briefing",
+        "interactions.Interaction",
+    }
 
     def test_no_model_carries_the_flag_without_a_test_or_a_named_exemption(self):
         accounted = self.COVERED | set(EXEMPT_MODELS)
@@ -257,3 +339,76 @@ class TestEveryPrivatisableModelIsAccountedFor:
             f"Ces entrées ne correspondent plus à aucun modèle : {sorted(stale)}. "
             "Une exemption périmée a l'air de faire autorité en étant fausse."
         )
+
+
+# ── 4. La porte de l'agent : une liste bornée ne borne pas ⌘K ────────────────
+
+
+class TestEveryPrivatisableModelDeclaresItsRestriction:
+    """Un modèle privatisable est déclaré dans ``core.visibility.REGISTRY``.
+
+    Les trois parties du dessus ne regardent que les listes REST. Or six autres
+    portes ne passent **jamais** par le viewset : la palette ⌘K, le tool
+    ``search_household``, ``get_entity``, ``get_related``, ``list_entities`` et le
+    contexte d'une conversation ancrée. Une seule déclaration les ferme toutes,
+    parce que toutes appellent ``core.visibility.narrow_for``.
+
+    Le contrôle est structurel et pas comportemental, exprès : énumérer les sept
+    portes dans un test finirait par en oublier une huitième, alors que la
+    déclaration, elle, les ferme d'un coup. Même choix que pour
+    ``banking.compliance.REGISTRY`` — on vérifie que le mécanisme est *déclaré*,
+    pas qu'il a été recopié partout.
+
+    ⚠️ Ce contrôle lit le **registre**, et surtout pas le champ ``is_private``.
+    C'est ce qui lui permettra de voir arriver une confidentialité **héritée** —
+    un tracker dont le projet est privé n'a aucun drapeau à inspecter, donc un
+    catalogue adossé au ``grep`` du champ ne pourrait structurellement pas le
+    couvrir.
+    """
+
+    def test_no_model_carries_the_flag_without_being_registered(self):
+        from core import visibility
+
+        registered = {spec.model for spec in visibility.REGISTRY}
+        offenders = [
+            _label(model)
+            for model in _models_with_is_private()
+            if model not in registered
+        ]
+        assert not offenders, (
+            f"Ces modèles portent is_private sans être déclarés au registre de "
+            f"visibilité : {sorted(offenders)}. Le queryset de leur vue a beau "
+            "borner, les six portes de l'agent lisent core.visibility.REGISTRY — "
+            "pas la vue. Enregistrer un PrivacySpec depuis l'apps.py de l'app "
+            "propriétaire (narrow=visible_to_creator pour le couple is_private / "
+            "created_by)."
+        )
+
+    def test_the_registry_has_no_stale_entry(self):
+        """Une déclaration qui ne restreint plus rien a l'air de faire autorité."""
+        from core import visibility
+
+        privatisable = set(_models_with_is_private())
+        inherited = set()  # confidentialité héritée : lot 4 (Tracker, Project…)
+        stale = [
+            _label(spec.model)
+            for spec in visibility.REGISTRY
+            if spec.model not in privatisable | inherited
+        ]
+        assert not stale, (
+            f"Ces specs ne correspondent plus à un modèle privatisable : {sorted(stale)}. "
+            "Une déclaration périmée a l'air de faire autorité en étant fausse."
+        )
+
+    def test_narrow_for_leaves_an_unregistered_model_alone(self, db):
+        """« Pas de spec » veut dire « le scope foyer est toute la règle ».
+
+        Le défaut ouvert est ici volontaire et borné par le test du dessus : sans
+        lui, ``narrow_for`` planterait sur les dizaines d'entités qui n'ont aucune
+        confidentialité, et on serait revenu à une liste de cas dans l'appelant.
+        """
+        from core import visibility
+        from zones.models import Zone
+
+        base = Zone.objects.all()
+        assert visibility.narrow_for(base, None).query.__str__() == base.query.__str__()

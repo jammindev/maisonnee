@@ -1,10 +1,19 @@
 # Parcours 28 — Backlog technique : ouvrir Maisonnée
 
-> **État au 2026-08-13** — lots 0, 1, 1ter, 2, 3, 4, 5, 6 et 8 livrés ; lot 1bis
+> **État au 2026-08-22** — lots 0, 1, 1ter, 2, 3, 4, 5, 6 et 8 livrés ; lot 1bis
 > partiel ; **il ne reste que le lot 7** (recette pilote).
-> Première release publiée : **`v0.1.0`**, et l'image est **publique depuis le
-> 2026-08-13** : `docker pull ghcr.io/jammindev/maisonnee:latest` répond sans
-> aucun compte, en `amd64` et `arm64`. Les trois lignes du README sont vraies.
+> Quatre releases publiées — `v0.1.0` (2026-08-04), `v0.2.0` (08-13), `v0.3.0`
+> (08-15), **`v0.4.0` (08-18)** — et l'image est **publique depuis le 2026-08-13** :
+> `docker pull ghcr.io/jammindev/maisonnee:latest` répond sans aucun compte, en
+> `amd64` et `arm64`. Les trois lignes du README sont vraies.
+> **Une vitrine publique existe depuis le 2026-08-18** :
+> [demo.maisonnee.jammin-dev.com](https://demo.maisonnee.jammin-dev.com) — voir
+> plus bas, c'est devenu un **prérequis du lot 7**.
+>
+> ⚠️ **Trois issues de lot sont livrées sans être fermées** (#491 lot 5, #492 lot 6,
+> #494 lot 8), chacune avec son reliquat nommé dans sa section. Ce tableau est donc
+> la source de vérité, pas l'état des issues — et c'est un défaut à corriger, pas
+> une convention : un lot dont l'issue reste ouverte se relit comme un lot en cours.
 > Chantier technique transverse : rendre le projet publiable, installable par un
 > tiers et défendable une fois exposé. Aucune feature métier.
 
@@ -34,6 +43,33 @@ Issue ombrelle : **#485**
 
 > Le lot 8 porte un numéro tardif mais s'exécute **avant le lot 6** : les captures
 > d'écran contiennent le logo et les icônes.
+
+### La vitrine — un prérequis du lot 7 qui n'était dans aucun lot
+
+Montée le **2026-08-18**, hors backlog : `demo.maisonnee.jammin-dev.com`, un compte
+partagé sur un foyer fictif, remis à zéro chaque nuit à 4 h. Infra :
+`deploy/demo/` (compose + `reset.sh` + unités systemd), doc dans `DEPLOYMENT.md`
+§ 11. Elle tourne sur le **paquet publié**, jamais sur les sources — donc elle ne
+profite d'un correctif qu'après un **tag**.
+
+Elle n'appartient à aucun lot et pourtant elle en conditionne un, parce que le
+parcours 28 avait laissé un angle mort : **celui qui installe n'est jamais celui
+qui décide si ça sert.** Les lots 2 à 6 rendent le produit installable et
+présentable à un *développeur* ; ils ne donnent rien à montrer à son foyer. Or le
+lot 7 exige « au moins un foyer où un non-développeur se sert de l'app » — un
+critère qu'on ne peut pas recruter avec des captures d'écran.
+
+D'où la place dans la séquence : **la vitrine se répare avant qu'on recrute**, pas
+après. Une démo à moitié vide dépense le « seul coup par communauté » du lot 7 sans
+rien apprendre.
+
+Ce que ça a déjà appris, et qui vaut plus que la vitrine elle-même : le 2026-08-19,
+**cinq des 22 entrées de la sidebar** n'avaient rien à afficher en production
+(Électricité, Verger, Chasse au trésor, Documents, Photos) alors que le test censé
+le garantir était **vert** — sa liste de modèles était écrite à la main et se
+décrivait elle-même. Corrigé en dérivant la couverture de `PINNABLE_MODULES`
+(PR #649). La leçon est dans `CLAUDE.md` § « Deux espaces » : un garde-fou se
+dérive du registre, jamais de ce qu'il a sous la main.
 
 ## Flow cible
 
@@ -756,6 +792,20 @@ dans tout le dépôt**, alors que c'est le point le plus rentable du parcours.
 sur une installation cassée partent et ne reviennent pas. Ce lot impose la
 séquence et définit ce qu'on mesure — la rétention, pas les étoiles.
 
+**Prérequis, à lever avant de recruter le premier foyer.** Ce ne sont pas des
+tâches du lot ; ce sont les raisons pour lesquelles il n'a pas encore commencé.
+
+| | Sujet | État |
+|---|---|---|
+| Vitrine complète | Cinq modules vides en production, corrigés par la PR #649 | ⬜ à merger **et à tagguer** — `reset.sh` tire la dernière release, pas `main` |
+| Vitrine crédible | #645 — la démo ne peut pas répondre à la question posée par la capture héros du README | ⬜ |
+| CI débloquée | #651 — le scan de secrets lit toutes les branches, donc une branche voisine rougit toutes les PR | ⬜ |
+| Isolation en écriture | Lot 1bis (#498) : actions custom + 26 `APIView` non couvertes | 🔄 partiel |
+
+Le dernier est le seul qui soit un risque et non un désagrément : inviter des
+inconnus multi-foyers avant que l'isolation en écriture soit tenue par un test
+générique, c'est faire porter à des tiers un risque qu'on n'a pas mesuré.
+
 **Fichiers**
 
 - `docs/parcours/PARCOURS_28_RECETTE_PILOTE.md` (nouveau) — protocole : recrutement
@@ -883,7 +933,8 @@ Lot 0  (hygiène + CI)          ← court, prérequis absolu à toute exposition
                       └─ Lot 5  (exploitation)
                            └─ Lot 8  (identité visuelle)  ← le logo doit exister avant les captures
                                 └─ Lot 6  (façade)  ← les captures montrent l'app finale, logo compris
-                                     └─ Lot 7  (pilotes → annonce)
+                                     └─ Vitrine  ← hors lot : ce qu'on montre au foyer, pas au dev
+                                          └─ Lot 7  (pilotes → annonce)
 ```
 
 Les lots 1 et 2 peuvent avancer en parallèle (backend vs packaging). Le lot 6
@@ -939,6 +990,13 @@ ils rattrapent une exposition en cours et passent devant tout le reste.
 - **Ne pas confondre installer et revenir.** Le succès du lot 7 se mesure à S+6.
 - **La seed de démo est aussi une vitrine.** Elle doit montrer le module Argent en
   premier : c'est la seule partie avec une promesse que personne d'autre ne tient.
+  Et depuis qu'elle est **servie publiquement** (2026-08-18), la couverture de la
+  sidebar est une propriété à tenir par un test, pas par une relecture : cinq
+  modules sont restés vides en production pendant que le contrôle affichait vert.
+  Corollaire pour la suite du parcours : **livrer un module et le semer sont un seul
+  travail.** Verger et Chasse au trésor sont arrivés le 2026-08-15 et la vitrine ne
+  les a jamais montrés — un module qu'on ne peut pas montrer n'existe pas pour le
+  lot 7.
 
 ## Définition de done technique
 

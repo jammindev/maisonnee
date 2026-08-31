@@ -154,7 +154,7 @@ export default function TrackerCard({
                 if (e.key === 'Escape') setQuickAddOpen(false);
               }}
               placeholder={t('trackers.quickAddPlaceholder')}
-              className="h-8 flex-1 text-sm"
+              className="h-8 flex-1 md:text-sm"
               disabled={saving}
               autoFocus
             />

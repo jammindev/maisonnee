@@ -203,7 +203,7 @@ export function ProfileSection() {
               <select
                 value={locale}
                 onChange={(e) => setLocale(e.target.value as Locale)}
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                className="text-base w-full rounded-md border border-input bg-transparent px-3 py-2 md:text-sm"
               >
                 {LOCALE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>

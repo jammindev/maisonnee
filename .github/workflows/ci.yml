@@ -144,7 +144,7 @@ jobs:
     runs-on: self-hosted
     needs: [backend, frontend, proxy]
     if: >-
-      github.repository == 'jammindev/house' &&
+      github.repository == 'jammindev/maisonnee' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'push'
 

@@ -20,7 +20,9 @@ Trois défauts possibles, tous silencieux, tous rencontrés en écrivant le lot 
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import xml.dom.minidom
 from pathlib import Path
 
@@ -34,6 +36,32 @@ MANIFEST = REPO / "templates" / "manifest.json"
 INDEX = REPO / "templates" / "index.html"
 
 BRAND_COLOR = "#3F5741"
+
+REPOSITORY_SLUG = "jammindev/maisonnee"
+FORMER_REPOSITORY_SLUG = "jammindev/house"
+
+# Les seuls fichiers autorisés à porter l'ancien slug : il y est un **fait daté**
+# (« public depuis le 21 septembre 2025 »), pas un lien vivant. Réécrire l'histoire
+# coûte plus que de l'assumer — même règle que « les anciennes issues ne se
+# traduisent pas ». Ce fichier de test s'y ajoute : il doit bien nommer ce qu'il
+# refuse.
+FILES_WHERE_THE_FORMER_NAME_IS_HISTORY = {
+    "docs/parcours/PARCOURS_28_OUVRIR_MAISONNEE.md",
+    "docs/parcours/PARCOURS_28_BACKLOG_TECHNIQUE.md",
+    "docs/journal/2026-07-31_parcours-28_cadrage_initial.md",
+    "apps/core/tests/test_brand_assets.py",
+}
+
+# Les endroits qui recopient le slug hors des workflows. Chacun est un deuxième
+# exemplaire d'une même valeur — donc quelque chose doit les comparer.
+FILES_QUOTING_THE_SLUG = (
+    "ui/src/lib/api/changelog.ts",
+    "ui/src/features/settings/components/AboutSection.tsx",
+    "apps/app_settings/capabilities.py",
+    "README.md",
+    "README.fr.md",
+    "docker-compose.yml",
+)
 
 
 def _svg_files():
@@ -254,4 +282,149 @@ class TestTheFrontDoorHasNoDeadLinks:
         assert declared == on_disk, (
             f"déclarées par le harnais : {sorted(declared)} ; "
             f"présentes sur disque : {sorted(on_disk)}"
+        )
+
+
+class TestTheRepositoryHasASingleName:
+    """Le dépôt s'appelle `maisonnee` — et rien ne doit dire l'inverse.
+
+    Le renommage de `jammindev/house` en `jammindev/maisonnee` (2026-08-18) a mis
+    au jour un défaut d'une famille bien connue ici : **un littéral qui devient
+    faux sans rien casser.** Trois workflows gardaient leur job par
+    ``if: github.repository == 'jammindev/house'``. Une fois le dépôt renommé, la
+    condition ne lève pas — elle vaut `false`, le job est **sauté**, et la CI
+    reste **verte**. Le job en question était `deploy` : un push sur `main` aurait
+    cessé de déployer sans qu'aucun signal ne l'annonce.
+
+    C'est le même défaut que le `onSuccess` qui oublie une racine de cache et que
+    le `msgstr` vide : **en revue, le diff fautif ressemble exactement au diff
+    juste.** Donc ça ne se relit pas, ça se teste.
+    """
+
+    def _tracked_text_files(self):
+        listing = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        for relative in filter(None, listing.split("\0")):
+            try:
+                yield relative, (REPO / relative).read_text()
+            except (UnicodeDecodeError, OSError):
+                continue  # binaire (images de marque) ou entrée sans fichier
+
+    def test_the_declared_name_is_the_one_github_reports(self):
+        """Le maillon qui ferme la boucle : le littéral face au dépôt réel.
+
+        Les autres contrôles de cette classe comparent les exemplaires **entre
+        eux** — ils attrapent une dérive interne, pas un dépôt renommé sous les
+        pieds du code. Celui-ci lit `GITHUB_REPOSITORY`, que le runner pose, et
+        c'est le seul qui aurait rougi à la seconde du renommage.
+
+        Sur un fork il **skippe** : le slug amont ne s'applique pas à quelqu'un
+        d'autre, et un contributeur qui découvre le projet ne doit pas hériter
+        d'une CI rouge pour avoir cliqué sur « Fork ».
+
+        En revanche il **refuse de skipper sur un runner GitHub**. Un contrôle
+        qui se désactive tout seul est précisément le défaut que cette classe
+        existe pour empêcher : la CI tourne en `-q`, qui n'imprime pas les
+        raisons de skip, donc un `GITHUB_REPOSITORY` disparu (un `env:` posé sur
+        l'étape, un autre exécuteur) rendrait ce test muet sans rien afficher.
+        Le seul contrôle qui voit le dépôt réel ne doit pas pouvoir s'éteindre en
+        silence.
+        """
+        actual = os.environ.get("GITHUB_REPOSITORY")
+        # Les deux valeurs sont extraites dans des variables locales *avant* tout
+        # `assert`. Une assertion portant sur `os.environ` fait introspecter la
+        # table entière par pytest, qui l'imprime dans le rapport d'échec : sur ce
+        # dépôt public, un rouge en CI publierait tout le contexte du runner dans
+        # un log lisible par n'importe qui. Un test ne doit pas devenir une fuite
+        # le jour où il rougit.
+        on_a_github_runner = bool(os.environ.get("GITHUB_ACTIONS"))
+        if not actual:
+            assert not on_a_github_runner, (
+                "sur un runner GitHub sans `GITHUB_REPOSITORY` : ce test est le "
+                "seul à comparer le slug déclaré au dépôt réel, il ne doit pas "
+                "se laisser désactiver par une variable manquante"
+            )
+            pytest.skip("hors runner GitHub : aucun nom de dépôt à comparer")
+        owner, _, _name = actual.partition("/")
+        if owner != REPOSITORY_SLUG.partition("/")[0]:
+            pytest.skip(f"fork ({actual}) : le slug amont ne s'y applique pas")
+        assert actual == REPOSITORY_SLUG, (
+            f"GitHub annonce `{actual}` mais le code déclare "
+            f"`{REPOSITORY_SLUG}` — tout `github.repository ==` du dépôt est donc "
+            "faux, et les jobs qu'il garde (dont `deploy`) sont sautés en silence"
+        )
+
+    def test_the_discovery_sees_the_repository(self):
+        """Un balayage qui ne trouve rien passerait pour un balayage propre."""
+        found = dict(self._tracked_text_files())
+        assert len(found) > 100, f"git ls-files n'a rendu que {len(found)} fichiers"
+        assert "README.md" in found
+
+    def test_no_living_file_names_the_former_repository(self):
+        """L'ancien slug ne survit que là où il est un fait daté.
+
+        Ailleurs il redirige *aujourd'hui* — GitHub garde la redirection tant que
+        personne ne reprend le nom — et casse le jour où quelqu'un le reprend. Une
+        promesse d'adresse qui dépend de la bienveillance d'un tiers n'est pas une
+        adresse.
+        """
+        offenders = sorted(
+            relative
+            for relative, text in self._tracked_text_files()
+            if FORMER_REPOSITORY_SLUG in text
+            and relative not in FILES_WHERE_THE_FORMER_NAME_IS_HISTORY
+        )
+        assert not offenders, (
+            "ces fichiers nomment encore l'ancien dépôt "
+            f"`{FORMER_REPOSITORY_SLUG}` : {offenders}"
+        )
+
+    def test_every_workflow_gate_names_this_repository(self):
+        """Chaque `github.repository == '…'` désigne bien ce dépôt.
+
+        C'est le contrôle qui compte : ces égalités **gardent des jobs**, dont le
+        deploy. Une valeur périmée ne rougit pas, elle éteint.
+        """
+        gates: dict[str, list[str]] = {}
+        for workflow in sorted((REPO / ".github" / "workflows").glob("*.yml")):
+            named = re.findall(
+                r"github\.repository\s*==\s*'([^']+)'", workflow.read_text()
+            )
+            if named:
+                gates[workflow.name] = named
+
+        assert gates, (
+            "aucun `github.repository ==` trouvé : soit les gardes ont disparu "
+            "(alors ces workflows tournent aussi sur les forks), soit la syntaxe "
+            "a changé et ce test ne voit plus rien"
+        )
+        wrong = {
+            name: slugs
+            for name, slugs in gates.items()
+            if any(slug != REPOSITORY_SLUG for slug in slugs)
+        }
+        assert not wrong, (
+            f"ces gardes visent un autre dépôt que `{REPOSITORY_SLUG}` — le job "
+            f"gardé est silencieusement sauté : {wrong}"
+        )
+
+    @pytest.mark.parametrize("relative", FILES_QUOTING_THE_SLUG)
+    def test_every_copy_of_the_slug_agrees(self, relative):
+        """Un exemplaire de plus est un exemplaire qui peut dériver.
+
+        `REPO_URL` du changelog, le lien « À propos », la base des liens de
+        documentation des capacités, et la ligne `curl` que le lecteur du README
+        tape en premier. Première question du filtre du dépôt : *est-ce que ça
+        crée une deuxième définition ?* Oui — donc quelque chose doit les
+        comparer.
+        """
+        text = (REPO / relative).read_text()
+        assert REPOSITORY_SLUG in text, (
+            f"{relative} ne nomme pas `{REPOSITORY_SLUG}` — la valeur a dérivé ou "
+            "le fichier a changé de forme"
         )

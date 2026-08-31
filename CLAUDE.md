@@ -59,10 +59,23 @@ mensuel en anglais dans les quatre langues), `ui/src/lib/invalidate.test.ts` (un
 `onSuccess` qui oublie une racine), `agent/tests/test_registry.py` (un
 `url_template` qui mène à un écran blanc), `nginx/test-resilience.sh` (un
 `proxy_pass` littéral), `scripts/test-backup-restore.sh` (une restauration jamais
-rejouée). Le point commun des six est déjà écrit plus bas, mot pour mot : **en
-revue, le diff fautif ressemble exactement au diff juste.** Quand cette phrase est
-vraie d'un défaut, c'est la signature d'un travail à sortir de l'espace latent —
-pas d'une relecture à faire plus sérieusement.
+rejouée), `apps/core/tests/test_first_run.py` (cinq modules de la sidebar vides sur
+la vitrine publique). Le point commun des sept est déjà écrit plus bas, mot pour
+mot : **en revue, le diff fautif ressemble exactement au diff juste.** Quand cette
+phrase est vraie d'un défaut, c'est la signature d'un travail à sortir de l'espace
+latent — pas d'une relecture à faire plus sérieusement.
+
+**Et un garde-fou se dérive du registre, jamais de ce qu'il a sous la main.** Le
+septième existait déjà et il était **vert** pendant que la démonstration montrait
+cinq pages blanches. Sa liste de modèles était écrite à la main et se décrivait
+elle-même — « la liste est celle des modules que la seed alimente » : un contrôle
+qui énumère ce que son sujet *fait* ne peut structurellement pas voir ce que son
+sujet a *oublié*, et son silence se lit comme une preuve. La forme juste est
+toujours la même dans ce dépôt : **boucler sur le registre** (`PINNABLE_MODULES`,
+`agent.searchables`, `banking.compliance.REGISTRY`, `capabilities`) et exiger une
+entrée pour chacun, de sorte qu'ajouter au produit sans ajouter au contrôle lève
+au lieu de passer. Un test dont la couverture est un littéral vieillit à la
+vitesse à laquelle on oublie de le modifier.
 
 ## Chercher avant de construire
 
@@ -371,6 +384,68 @@ permet à une instance déjà en service de fermer la porte sans forker le code.
   du parcours 28 a supprimé partout ailleurs. Il n'expose rien que la première
   tentative ne dirait déjà en 403, contrairement à `/api/capabilities/` qui reste
   authentifié pour cette raison précise.
+
+## La confidentialité — un drapeau vaut ce que valent ses portes
+
+`is_private` trace une frontière **à l'intérieur** du foyer : moi contre les autres
+membres. Elle est plus fragile que l'isolation entre foyers, parce qu'elle n'est pas
+dans le chemin par défaut — le scope foyer vient du manager, la confidentialité doit
+être ajoutée à chaque lecture. Doc : `docs/fiches/CONFIDENTIALITE.md`. Régressions :
+`apps/core/tests/test_privacy_isolation.py` (quatre parties) et
+`apps/agent/tests/test_private_visibility.py`.
+
+- **Une déclaration par modèle, un seul point d'application.** Le modèle
+  s'enregistre depuis son `apps.py` — `core.visibility.register(PrivacySpec(model=…,
+  narrow=…))` — et **toutes** les portes appellent `core.visibility.narrow_for`.
+  L'implémentation du couple `is_private` / `created_by` est
+  `visible_to_creator`, **fail-closed** (`viewer=None` ne voit que le public, donc
+  un chemin qui oublie le lecteur **sous-affiche** au lieu de fuiter) et adossée à
+  `created_by`, **jamais au rôle** — un owner de foyer n'est pas un lecteur
+  privilégié du privé des autres. Ne jamais réécrire le `Q` au point d'appel : il
+  y en a eu quatre exemplaires, et deux définitions d'une visibilité ne divergent
+  pas symétriquement — c'est toujours la plus permissive qui gagne, en silence.
+- **⚠️ Il y a sept portes, pas une.** La liste REST du viewset, **plus** la palette
+  ⌘K, `search_household`, `get_entity`, `get_related`, `list_entities` et le
+  contexte d'une conversation ancrée — les six dernières ne passent jamais par le
+  viewset. **Un queryset borné ne borne pas ⌘K.** Déclarer une fois au registre
+  ferme les sept d'un coup. La tâche privée d'un membre a vécu absente de sa propre
+  liste et citable par l'assistant de tous les autres, parce que le correctif
+  précédent n'avait traité que les documents — **un garde-fou écrit pour un cas
+  passe pour un garde-fou général**, et personne ne relit son périmètre.
+  ⚠️ La déclaration n'a **pas** sa place sur le `SearchableSpec` : elle y a vécu, et
+  lier la confidentialité au fait d'être *cherchable* laisse sans domicile un modèle
+  privatisable non searchable (`Briefing`) et ne peut structurellement pas voir une
+  confidentialité **héritée**, qui ne porte aucun champ à inspecter.
+- **Le filtre vit dans `get_queryset`, jamais dans une permission objet.** Une
+  permission ne se prononce que sur un objet **déjà chargé** : elle protège le
+  détail et laisse passer la liste, qui est justement là où on lit les secrets des
+  autres.
+- **Masquer et cacher ne sont pas la même chose.** Ce qui alimente un compteur
+  partagé se **masque** ; ce qui n'alimente rien se **cache**. Une
+  `Interaction(type="expense")` n'est donc jamais retirée d'une liste — sept
+  agrégations la lisent, et la cacher sans la retirer des totaux donnerait au budget
+  « Bricolage » deux valeurs selon le lecteur. Son secret porte sur le **contenu**.
+  L'exception vit dans `interactions.visibility`, importée par la vue **et** par le
+  spec — un seul endroit décide, deux portes obéissent.
+- **Un compteur compte par lecteur.** Un onglet qui annonce « Tâches (3) » et en
+  sert deux ne se contente pas d'être faux : il **trahit l'existence** de l'item
+  privé à qui sait soustraire. Hors argent, privé veut dire absent *sans trace* —
+  et un compteur qui déborde est une trace.
+- **Aucun marqueur « 1 élément privé ».** Le dépôt applique ailleurs la règle
+  inverse (parcours 26 : rien ne reste dans un entre-deux silencieux) ; ici elle ne
+  s'applique pas, et il faut savoir dire pourquoi : sur un foyer de deux personnes,
+  un marqueur anonyme **désigne son auteur**.
+- **Le catalogue ne peut pas prendre de retard.** Un modèle portant le drapeau est
+  couvert par un test ou exempté **par écrit**, *et* enregistré au registre. Même
+  règle que `banking.compliance.REGISTRY` : ajouter un mécanisme, c'est ajouter sa
+  déclaration. Le contrôle lit le **registre** et surtout pas le champ, faute de
+  quoi il ne verrait jamais arriver une confidentialité héritée.
+
+**Pourquoi un test et pas une relecture :** le défaut est invisible deux fois. En
+revue, un `get_queryset()` qui oublie la clause ressemble trait pour trait à celui
+qui la porte. À l'usage, il faut **deux comptes dans le même foyer** pour s'en
+apercevoir — c'est-à-dire précisément ce qu'un développeur seul n'a jamais sous la
+main.
 
 ## Commandes utiles
 
@@ -1129,6 +1204,46 @@ doivent être le même nombre. Régressions : `ui/src/design-system/decimal-inpu
 `e2e/decimal-input.spec.ts` — **le bug n'existait que dans un vrai moteur, jamais
 en jsdom : il fallait un test navigateur pour l'attester.**
 
+### Un champ de saisie fait 16px sur mobile — sinon iOS zoome
+
+Le troisième volet de la même famille : la taille du texte d'un champ vit dans
+**`fieldBase` (`ui/src/design-system/field-styles.ts`), et seulement là** —
+`text-base md:text-sm`, donc 16px sur mobile et 14px à partir de `md`. Un site
+d'appel ne la repose jamais sans préfixe de variante. Régression :
+`ui/src/design-system/field-font-size.test.ts`.
+
+**Pourquoi c'est du métier et pas de la plomberie :** sous 16px, Mobile Safari
+**zoome le viewport** dès qu'un contrôle de formulaire prend le focus. Le
+symptôme se raconte « le dialogue s'ouvre, l'écran se rapproche, on ne voit plus
+rien » — et en PWA installée aucun geste ne ramène à l'échelle, donc le
+formulaire reste hors cadre jusqu'à la fermeture. Ce n'était pas une coquetterie
+de mise en page : le foyer ne pouvait pas saisir.
+
+- **`tailwind-merge` fait gagner le dernier de la même famille.** Un
+  `className="h-8 text-sm"` posé pour tasser un champ **efface** le `text-base`
+  du composant. Quinze champs étaient dans ce cas, dont le sélecteur de zones —
+  posé sur 24 écrans, et qui **se focus tout seul** dans son propre effet à
+  l'ouverture de son panneau.
+- **Un champ brut (`<input>`, `<select>`) déclare sa taille lui-même**, ou passe
+  par le composant du design-system. Tailwind pose `font-size: 100%` sur les
+  contrôles de formulaire : sans taille explicite ils héritent du conteneur,
+  donc 14px dès qu'ils sont posés dans un bloc `text-sm`. Le test refuse les
+  deux — la taille trop petite *et* l'absence de taille.
+- **Le garde-fou de #272 ne pouvait pas couvrir celui-ci**, et c'est la leçon
+  qui compte : il neutralise le focus **à l'ouverture d'un SheetDialog**
+  (`onOpenAutoFocus` + blur avant le paint) pour empêcher le clavier de sortir.
+  Le zoom, lui, ne dépend pas de *qui* donne le focus — un composant enfant qui
+  se focus dans son propre effet, ou simplement le doigt de l'utilisateur — mais
+  uniquement de la taille du texte. **Deux effets du même geste ne se corrigent
+  pas au même endroit.**
+- **Le contrôle est statique, et il ne peut pas être autre chose.** Le zoom
+  n'existe que dans WebKit : ni jsdom, ni Chromium, ni Firefox ne le
+  reproduisent, donc aucun test de rendu ne l'attesterait — c'est l'inverse de
+  `DecimalInput`, où il fallait justement un vrai moteur. Mais la propriété,
+  elle, est déterministe : c'est une taille de police, elle se lit dans la
+  source. Et **en revue, `text-sm` sur un champ ressemble exactement à
+  `md:text-sm`.**
+
 ### Un fichier stocké se télécharge — une PWA installée n'a pas de retour
 
 La section précédente invoquait déjà « en PWA installée aucun geste ne ramène » ;
@@ -1691,7 +1806,39 @@ qu'il dit, pas comment il le diffuse. Doc : `docs/MODULES/notifications.md`.
 - **`url` est porté par la ligne, `_DEEP_LINKS` n'est qu'un fallback.** La famille
   est entité-scopée : « Bob a terminé Tondre la pelouse » doit ouvrir *cette*
   tâche. Une notification qui annonce sans mener fait refaire au lecteur la
-  recherche qu'elle venait de faire pour lui.
+  recherche qu'elle venait de faire pour lui. **Et les deux écrans le lisent** :
+  la cloche s'en tenait à `mark-read`, donc le même objet menait quelque part sur
+  `/app/notifications` et nulle part dans le dropdown — ce qui y laissait des
+  lignes lues s'empiler sans qu'on ait jamais pu en faire quoi que ce soit.
+- **⚠️ L'API sert le lien *résolu*, jamais la colonne brute.** `deep_link_for`
+  (`url` → `_DEEP_LINKS[type]` → `/app/dashboard`) n'était appelée que par le
+  miroir Web Push, pendant que `NotificationSerializer` exposait `url` tel quel :
+  une alerte météo menait à sa page depuis la notification système et **nulle
+  part** depuis la cloche, faute d'`url` sur la ligne. Un même fait ne peut pas
+  avoir deux destinations, et celle qui manquait était celle qu'on lit dans
+  l'app. Corollaire tenu par test : **tout membre de `Notification.Type` déclare
+  sa destination** dans `_DEEP_LINKS`. Un catalogue incomplet est invisible — le
+  repli est toujours une page valide, donc un type non déclaré atterrit sur le
+  dashboard sans que rien ne le signale (c'est la troisième fois que
+  `weather_alert` se fait oublier dans un catalogue, après `MUTABLE_TYPES` et
+  l'affichage admin). Et **il n'y a pas de page de détail de notification** : une
+  notification mène à la *chose* qu'elle annonce, jamais à une page qui répète
+  son propre titre. Régression : `apps/notifications/tests/test_deep_links.py`.
+- **⚠️ L'aperçu de la cloche doit montrer ce que le badge annonce**
+  (`features/notifications/preview.ts`). Le badge compte tous les non-lus ;
+  l'aperçu était un `slice(0, 5)` trié **par date**, donc l'état lu/non-lu
+  n'entrait pas dans le choix des lignes affichées alors qu'il fonde le badge.
+  Cinq lues arrivées après un non-lu le rendaient introuvable pendant que le
+  badge affichait « 1 » : chaque chiffre juste selon sa propre règle, l'écart
+  invisible. Trois conséquences à préserver — **lire n'est pas supprimer** (les
+  lues restent, derrière les non-lues : `deleted_at` existe pour écarter, et
+  vider l'aperçu à la lecture ferait disparaître la ligne sous le curseur qui la
+  clique) ; **l'ordre est figé à l'ouverture**, et seul l'ordre, le contenu
+  restant frais (sinon marquer lu fait glisser la ligne et monter la suivante —
+  on clique à côté, même règle que la jambe sémantique de la recherche) ; et
+  **une ligne mène à son entité**. Régressions :
+  `features/notifications/preview.test.ts` et le bloc « l'aperçu tient la
+  promesse du badge » de `NotificationsBell.test.tsx`.
 - **`dedup_key` remplace les anti-doublons maison** (il y en avait trois formes).
   Portée `(user, type, key)` **vivant** : soft-supprimer libère la clé, parce que
   c'est l'utilisateur qui dit qu'il en a fini.

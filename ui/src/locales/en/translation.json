@@ -22,12 +22,6 @@
       "active": "Active",
       "inactive": "Inactive"
     },
-    "visibility": {
-      "private": "Private",
-      "shared": "Shared",
-      "privateHint": "Private — only me",
-      "sharedHint": "Shared — the whole household"
-    },
     "fields": {
       "title": "Title",
       "titlePlaceholder": "Morning briefing",
@@ -36,8 +30,7 @@
       "promptPlaceholder": "My tasks for the week and today's weather",
       "condition": "Condition",
       "conditionHint": "Optional. The assistant only sends the briefing when this is true — e.g. \"if it rains today\".",
-      "conditionPlaceholder": "If it rains today",
-      "visibility": "Visibility"
+      "conditionPlaceholder": "If it rains today"
     },
     "preview": {
       "action": "Preview",
@@ -478,7 +471,21 @@
       "indexM3": "Index (m³)",
       "readingDate": "Reading date",
       "indexRequired": "Date and index are required.",
-      "recentTitle": "Latest readings"
+      "recentTitle": "Latest readings",
+      "since": "since {{date}}",
+      "first": "first reading",
+      "index": "index {{value}} m³"
+    },
+    "chart": {
+      "volume": "Usage",
+      "rate": "Usage rate",
+      "rateUnit": "L/day",
+      "estimatedFrom": "Estimated: no reading this month, spread between those of {{from}} and {{to}}.",
+      "partialPeriod": "Partially covered period: it starts or ends outside your readings.",
+      "legendEstimated": "estimated",
+      "legendPartial": "incomplete period",
+      "needsTwoReadings": "Two readings are needed to work out consumption.",
+      "averageRate": "that is {{rate}} {{unit}} on average"
     }
   },
   "weather": {
@@ -835,7 +842,7 @@
     "qr": {
       "openPrintSheet": "QR labels",
       "printTitle": "Zone QR labels",
-      "printIntro": "Print this sheet, cut out the labels and stick one in each room. Scanning a label with your phone camera opens that room in House.",
+      "printIntro": "Print this sheet, cut out the labels and stick one in each room. Scanning a label with your phone camera opens that room in Maisonnée.",
       "printButton": "Print",
       "printEmpty": "No zones to label yet.",
       "scanning": "Reading the label…",
@@ -899,7 +906,6 @@
     "assignedToMe": "Me",
     "fieldProject": "Project",
     "noProject": "No project",
-    "fieldPrivate": "Private task (visible only to me)",
     "private": "Private",
     "filterPrivate": "Private",
     "filterInactiveProjects": "Inactive projects",
@@ -1059,7 +1065,7 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
-    "colorThemeHouse": "Maisonnée",
+    "colorThemeHouse": "House",
     "colorThemeBlue": "Blue",
     "colorThemeSass": "Sass",
     "colorThemeSage": "Sage",
@@ -1518,6 +1524,10 @@
           "complete": {
             "title": "Complete and find again",
             "body": "Check a task to complete it; the history remains available."
+          },
+          "privacy": {
+            "title": "Keep a task to yourself",
+            "body": "“Private” keeps the task to you alone: other members see it neither in the list, nor in search, nor through the assistant. A private task cannot be assigned — choosing “private” removes the assignee."
           }
         }
       },
@@ -1527,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Create the project",
-            "body": "Give it a name, a description and a planned budget."
+            "body": "Two doors. “Create with the assistant” asks you a few questions, then proposes the project with its tasks and notes — nothing is created until you have reviewed it and unchecked what you do not need. Or fill in the form yourself, if you already know."
           },
           "plan": {
             "title": "Gather tasks and notes",
@@ -1558,6 +1568,10 @@
           "link": {
             "title": "Link to context",
             "body": "Attach zones, documents or tasks to an entry to find it back easily."
+          },
+          "privacy": {
+            "title": "Keep a note to yourself",
+            "body": "“Private” keeps the note to you alone, everywhere. It triggers no notification: a note's title is precisely what it protects."
           }
         }
       },
@@ -1632,6 +1646,10 @@
           "find": {
             "title": "Find a document again",
             "body": "Filter by type in one click, group by type or date, search inside file text — the AI assistant can find them too."
+          },
+          "privacy": {
+            "title": "Keep a document to yourself",
+            "body": "“Private” keeps the document to whoever uploaded it — including its recognised text, so the assistant stops citing it. Only the uploader can change this setting."
           }
         }
       },
@@ -3033,6 +3051,40 @@
     },
     "summary": {
       "budget": "Budget"
+    },
+    "assistant": {
+      "new": "Create with the assistant",
+      "title": "Create a project with the assistant",
+      "reviewTitle": "Review before creating",
+      "goalLabel": "What do you want to do?",
+      "goalPlaceholder": "I want to redo the deck…",
+      "intro": "One sentence is enough. The assistant then asks a few questions and proposes the project with its tasks and notes. Nothing is created until you have reviewed it.",
+      "start": "Start",
+      "next": "Answer",
+      "enough": "That’s enough, generate",
+      "thinking": "The assistant is thinking…",
+      "back": "Back to the interview",
+      "create": "Create the project",
+      "progress": "question {{asked}} of {{total}}",
+      "noAnswer": "(no answer)",
+      "failed": "The assistant could not answer. Rephrase, or move on.",
+      "created": "Project created.",
+      "reviewIntro": "Uncheck what you do not need, fix what is wrong. Nothing exists yet.",
+      "unresolvedRooms": "Rooms not found in your home, filed under the project’s own: {{rooms}}",
+      "chooseType": "Choose a type",
+      "tasksHeading": "Tasks ({{count}})",
+      "notesHeading": "Notes ({{count}})",
+      "noTasks": "No task proposed.",
+      "noNotes": "No note proposed.",
+      "answer": {
+        "amountPlaceholder": "An amount",
+        "otherPlaceholder": "…or something else",
+        "textPlaceholder": "Your answer"
+      },
+      "budgetLabel": "Spending envelope",
+      "budgetNone": "No envelope",
+      "budgetNew": "Create “{{name}}”",
+      "budgetHint": "It files the project’s expenses, it does not cap them — the ceiling stays the planned budget above."
     }
   },
   "notifications": {
@@ -4596,6 +4648,12 @@
       "unavailable": "Riddle writing is not configured on this instance.",
       "without": "Treasure hunts work exactly the same — you write the riddles yourself.",
       "enabled": "The assistant can propose a riddle for each room of a hunt."
+    },
+    "project_assistant": {
+      "name": "Guided project creation",
+      "unavailable": "Guided project creation is not configured on this instance.",
+      "without": "Projects are still created with the form, exactly as before — nothing is missing.",
+      "enabled": "The assistant asks a few questions, then proposes the project with its tasks and notes."
     }
   },
   "orchard": {
@@ -4823,5 +4881,14 @@
     },
     "replay": "Replay",
     "replayed": "Hunt ready to play again, in a new order"
+  },
+  "privacy": {
+    "legend": "Visibility",
+    "shared": "Shared",
+    "sharedHint": "The whole household",
+    "private": "Private",
+    "privateHint": "Only me",
+    "taskUnassigns": "A private task cannot be assigned: the assignee will be removed.",
+    "documentOwnerOnly": "Only the person who uploaded a document can change its visibility."
   }
 }

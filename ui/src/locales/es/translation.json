@@ -22,12 +22,6 @@
       "active": "Activos",
       "inactive": "Inactivos"
     },
-    "visibility": {
-      "private": "Privado",
-      "shared": "Compartido",
-      "privateHint": "Privado — solo yo",
-      "sharedHint": "Compartido — todo el hogar"
-    },
     "fields": {
       "title": "Título",
       "titlePlaceholder": "Briefing de la mañana",
@@ -36,8 +30,7 @@
       "promptPlaceholder": "Mis tareas de la semana y el tiempo de hoy",
       "condition": "Condición",
       "conditionHint": "Opcional. El asistente solo envía el briefing cuando esto es cierto, p. ej. «si llueve hoy».",
-      "conditionPlaceholder": "Si llueve hoy",
-      "visibility": "Visibilidad"
+      "conditionPlaceholder": "Si llueve hoy"
     },
     "preview": {
       "action": "Vista previa",
@@ -478,7 +471,21 @@
       "indexM3": "Índice (m³)",
       "readingDate": "Fecha de lectura",
       "indexRequired": "La fecha y el índice son obligatorios.",
-      "recentTitle": "Últimas lecturas"
+      "recentTitle": "Últimas lecturas",
+      "since": "desde el {{date}}",
+      "first": "primera lectura",
+      "index": "índice {{value}} m³"
+    },
+    "chart": {
+      "volume": "Consumo",
+      "rate": "Caudal",
+      "rateUnit": "L/día",
+      "estimatedFrom": "Estimado: ninguna lectura este mes, repartido entre las del {{from}} y del {{to}}.",
+      "partialPeriod": "Periodo parcialmente cubierto: empieza o termina fuera de sus lecturas.",
+      "legendEstimated": "estimado",
+      "legendPartial": "periodo incompleto",
+      "needsTwoReadings": "Se necesitan dos lecturas para calcular el consumo.",
+      "averageRate": "es decir {{rate}} {{unit}} de media"
     }
   },
   "weather": {
@@ -835,7 +842,7 @@
     "qr": {
       "openPrintSheet": "Etiquetas QR",
       "printTitle": "Etiquetas QR de las estancias",
-      "printIntro": "Imprime esta hoja, recorta las etiquetas y pega una en cada estancia. Escanear una etiqueta con la cámara del móvil abre esa estancia en House.",
+      "printIntro": "Imprime esta hoja, recorta las etiquetas y pega una en cada estancia. Escanear una etiqueta con la cámara del móvil abre esa estancia en Maisonnée.",
       "printButton": "Imprimir",
       "printEmpty": "Todavía no hay estancias que etiquetar.",
       "scanning": "Leyendo la etiqueta…",
@@ -899,7 +906,6 @@
     "assignedToMe": "Yo",
     "fieldProject": "Proyecto",
     "noProject": "Sin proyecto",
-    "fieldPrivate": "Tarea privada (visible solo para mí)",
     "private": "Privada",
     "filterPrivate": "Privado",
     "filterInactiveProjects": "Proyectos inactivos",
@@ -1518,6 +1524,10 @@
           "complete": {
             "title": "Terminar y reencontrar",
             "body": "Marca una tarea para terminarla; el historial sigue disponible."
+          },
+          "privacy": {
+            "title": "Guardar una tarea para uno mismo",
+            "body": "«Privado» reserva la tarea solo para ti: los demás miembros no la ven ni en la lista, ni en la búsqueda, ni a través del asistente. Una tarea privada no puede asignarse: elegir «privado» quita la asignación."
           }
         }
       },
@@ -1527,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Crear el proyecto",
-            "body": "Dale un nombre, una descripción y un presupuesto previsto."
+            "body": "Dos puertas. «Crear con el asistente» te hace algunas preguntas y luego propone el proyecto con sus tareas y notas — no se crea nada hasta que lo hayas revisado y desmarcado lo que no sirva. O rellena el formulario tú mismo, si ya lo tienes claro."
           },
           "plan": {
             "title": "Reunir tareas y notas",
@@ -1558,6 +1568,10 @@
           "link": {
             "title": "Enlazar con el contexto",
             "body": "Asocia zonas, documentos o tareas a una entrada para reencontrarla fácilmente."
+          },
+          "privacy": {
+            "title": "Guardar una nota para uno mismo",
+            "body": "«Privado» reserva la nota solo para ti, en todas partes. No genera ninguna notificación: el título de una nota es justamente lo que protege."
           }
         }
       },
@@ -1632,6 +1646,10 @@
           "find": {
             "title": "Reencontrar un documento",
             "body": "Filtra por tipo con un clic, agrupa por tipo o fecha, busca en el texto de los archivos — el asistente de IA también sabe encontrarlos."
+          },
+          "privacy": {
+            "title": "Guardar un documento para uno mismo",
+            "body": "«Privado» reserva el documento a quien lo subió, incluido su texto reconocido, así que el asistente deja de citarlo. Solo quien lo subió puede cambiar este ajuste."
           }
         }
       },
@@ -3033,6 +3051,40 @@
     },
     "summary": {
       "budget": "Presupuesto"
+    },
+    "assistant": {
+      "new": "Crear con el asistente",
+      "title": "Crear un proyecto con el asistente",
+      "reviewTitle": "Revisar antes de crear",
+      "goalLabel": "¿Qué quieres hacer?",
+      "goalPlaceholder": "Quiero rehacer la terraza…",
+      "intro": "Basta con una frase. El asistente hace luego algunas preguntas y propone el proyecto con sus tareas y notas. No se crea nada hasta que lo hayas revisado.",
+      "start": "Empezar",
+      "next": "Responder",
+      "enough": "Ya he dicho bastante, genera",
+      "thinking": "El asistente está pensando…",
+      "back": "Volver a la entrevista",
+      "create": "Crear el proyecto",
+      "progress": "pregunta {{asked}} de {{total}}",
+      "noAnswer": "(sin respuesta)",
+      "failed": "El asistente no ha podido responder. Reformula o continúa.",
+      "created": "Proyecto creado.",
+      "reviewIntro": "Desmarca lo que no sirva y corrige lo que esté mal. Todavía no existe nada.",
+      "unresolvedRooms": "Estancias que no existen en tu hogar, asignadas a las del proyecto: {{rooms}}",
+      "chooseType": "Elegir un tipo",
+      "tasksHeading": "Tareas ({{count}})",
+      "notesHeading": "Notas ({{count}})",
+      "noTasks": "Ninguna tarea propuesta.",
+      "noNotes": "Ninguna nota propuesta.",
+      "answer": {
+        "amountPlaceholder": "Un importe",
+        "otherPlaceholder": "…u otra cosa",
+        "textPlaceholder": "Tu respuesta"
+      },
+      "budgetLabel": "Sobre de gastos",
+      "budgetNone": "Sin sobre",
+      "budgetNew": "Crear «{{name}}»",
+      "budgetHint": "Clasifica los gastos del proyecto, no los limita — el límite sigue siendo el presupuesto previsto de arriba."
     }
   },
   "notifications": {
@@ -4596,6 +4648,12 @@
       "unavailable": "La redacción de adivinanzas no está configurada en esta instancia.",
       "without": "Las búsquedas del tesoro funcionan igual: las adivinanzas las escribes tú.",
       "enabled": "El asistente puede proponer una adivinanza para cada habitación de una búsqueda."
+    },
+    "project_assistant": {
+      "name": "Creación de proyecto asistida",
+      "unavailable": "La creación de proyecto asistida no está configurada en esta instancia.",
+      "without": "Los proyectos se siguen creando con el formulario, igual que antes — no falta nada.",
+      "enabled": "El asistente hace algunas preguntas y luego propone el proyecto con sus tareas y notas."
     }
   },
   "orchard": {
@@ -4823,5 +4881,14 @@
     },
     "replay": "Volver a jugar",
     "replayed": "Búsqueda lista para repetirse, en otro orden"
+  },
+  "privacy": {
+    "legend": "Visibilidad",
+    "shared": "Compartido",
+    "sharedHint": "Todo el hogar",
+    "private": "Privado",
+    "privateHint": "Solo yo",
+    "taskUnassigns": "Una tarea privada no puede asignarse: se quitará la asignación.",
+    "documentOwnerOnly": "Solo quien subió un documento puede cambiar su visibilidad."
   }
 }

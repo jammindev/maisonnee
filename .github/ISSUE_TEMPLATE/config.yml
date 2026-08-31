@@ -1,9 +1,9 @@
 blank_issues_enabled: true
 contact_links:
   - name: 🔒 Security vulnerability
-    url: https://github.com/jammindev/house/security/advisories/new
+    url: https://github.com/jammindev/maisonnee/security/advisories/new
     about: Report privately, never in a public issue. See SECURITY.md.
 
   - name: 🇫🇷 The documentation is in French — start here
-    url: https://github.com/jammindev/house/blob/main/docs/README.en.md
+    url: https://github.com/jammindev/maisonnee/blob/main/docs/README.en.md
     about: An English guide to what each French document contains, and what is worth translating.

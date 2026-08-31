@@ -62,7 +62,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported **privately**, through either channel:
 
 - GitHub's private reporting form, at
-  [Security → Report a vulnerability](https://github.com/jammindev/house/security/advisories/new)
+  [Security → Report a vulnerability](https://github.com/jammindev/maisonnee/security/advisories/new)
   — it is enabled on this repository and works for conduct reports too;
 - or by contacting [@jammindev](https://github.com/jammindev) directly on GitHub.
 

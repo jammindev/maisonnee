@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 /**
  * Parcours générique : enregistrer un achat sur un équipement.
  *
- * Issue: https://github.com/jammindev/house/issues/119 — généralisation du
+ * Issue: https://github.com/jammindev/maisonnee/issues/119 — généralisation du
  * pattern "auto-création d'Interaction(expense) depuis n'importe quel module"
  * via la FK polymorphe Interaction.source + le service create_expense_interaction.
  */

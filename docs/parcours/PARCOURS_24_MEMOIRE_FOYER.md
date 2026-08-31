@@ -81,31 +81,31 @@
 
 | # | Story | Issue | État |
 |---|---|---|---|
-| 1.1 | Modèle `HouseholdFact` scopé foyer (`content`, `source`, `source_ref`, `confidence`) + service miroir de `memory.py` (cap 50) + API DRF list/create/update/destroy | [#346](https://github.com/jammindev/house/issues/346) | ⏳ |
+| 1.1 | Modèle `HouseholdFact` scopé foyer (`content`, `source`, `source_ref`, `confidence`) + service miroir de `memory.py` (cap 50) + API DRF list/create/update/destroy | [#346](https://github.com/jammindev/maisonnee/issues/346) | ⏳ |
 
 ### Lot 2 — Capture & injection en chat (V1)
 
 | # | Story | Issue | État |
 |---|---|---|---|
-| 2.1 | Bloc « faits du foyer » injecté dans le system prompt (jumeau `MEMORY_BLOCK`, `neutralize()`) + `manage_memory` étendu pour cibler le bon bucket + routage par le prompt (perso → user, maison → foyer) | [#347](https://github.com/jammindev/house/issues/347) | ⏳ |
+| 2.1 | Bloc « faits du foyer » injecté dans le system prompt (jumeau `MEMORY_BLOCK`, `neutralize()`) + `manage_memory` étendu pour cibler le bon bucket + routage par le prompt (perso → user, maison → foyer) | [#347](https://github.com/jammindev/maisonnee/issues/347) | ⏳ |
 
 ### Lot 3 — UI de gestion (V1)
 
 | # | Story | Issue | État |
 |---|---|---|---|
-| 3.1 | Vue liste des faits du foyer, édition + suppression annulable (toast/undo), état vide pédagogique, distinction visible mémoire perso vs foyer | [#348](https://github.com/jammindev/house/issues/348) | ⏳ |
+| 3.1 | Vue liste des faits du foyer, édition + suppression annulable (toast/undo), état vide pédagogique, distinction visible mémoire perso vs foyer | [#348](https://github.com/jammindev/maisonnee/issues/348) | ⏳ |
 
 ### Lot 4 — Extracteur de faits (V2)
 
 | # | Story | Issue | État |
 |---|---|---|---|
-| 4.1 | Fonction d'extraction `(contenu, faits_connus)` → JSON strict `{"facts":[{action:add\|merge\|skip, content, replaces_id, confidence}]}`, best-effort, feature name dédié dans `AIUsageLog` | [#349](https://github.com/jammindev/house/issues/349) | ⏳ |
+| 4.1 | Fonction d'extraction `(contenu, faits_connus)` → JSON strict `{"facts":[{action:add\|merge\|skip, content, replaces_id, confidence}]}`, best-effort, feature name dédié dans `AIUsageLog` | [#349](https://github.com/jammindev/maisonnee/issues/349) | ⏳ |
 
 ### Lot 5 — Job de fond & routage confidentialité (V2)
 
 | # | Story | Issue | État |
 |---|---|---|---|
-| 5.1 | Job périodique idempotent (curseur) scannant `Interaction`/`Project`, extraction via lot 4, **routage confidentialité à l'écriture** (privé → bucket user du créateur, jamais `HouseholdFact`), test de non-régression explicite | [#350](https://github.com/jammindev/house/issues/350) | ⏳ |
+| 5.1 | Job périodique idempotent (curseur) scannant `Interaction`/`Project`, extraction via lot 4, **routage confidentialité à l'écriture** (privé → bucket user du créateur, jamais `HouseholdFact`), test de non-régression explicite | [#350](https://github.com/jammindev/maisonnee/issues/350) | ⏳ |
 
 ## Limites V1 assumées
 

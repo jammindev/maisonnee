@@ -5,7 +5,12 @@ import os
 logger = logging.getLogger(__name__)
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth import (
+    SESSION_KEY,
+    authenticate,
+    login as auth_login,
+    logout as auth_logout,
+)
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
@@ -23,7 +28,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.models import User
 from accounts.permissions import OpenSignupAllowed
@@ -120,7 +127,7 @@ class AuthViewSet(viewsets.ViewSet):
             html_body = render_to_string("accounts/emails/password_reset.html", context)
 
             message = EmailMultiAlternatives(
-                subject=str(_("Reset your House password")),
+                subject=str(_("Reset your Maisonnée password")),
                 body=text_body,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 to=[user.email],
@@ -404,6 +411,87 @@ class TokenObtainPairWithSessionView(TokenObtainPairView):
             backend='django.contrib.auth.backends.ModelBackend',
         )
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+
+class TokenRefreshWithSessionView(TokenRefreshView):
+    """Le refresh JWT est le battement de cœur de la session.
+
+    ⚠️ **La session qui authentifie les images n'a pas le droit d'expirer avant
+    le jeton qui maintient le SPA connecté.** Ouverte au seul login par la vue
+    ci-dessus, elle vivait 14 jours fixes ; le refresh, lui, tourne 30 jours et
+    **avec rotation**, donc indéfiniment tant que le foyer se sert de l'app —
+    854 refresh pour 10 logins, mesurés en production.
+
+    Au 14e jour, la session mourait sans que rien ne le dise : l'API répondait
+    toujours, et **toutes** les images tombaient en 401 d'un coup — vignettes,
+    photos, avatars. Deux horloges pour une seule connexion, et c'est la plus
+    courte qui décidait, en silence (issue #567).
+
+    D'où : tout refresh réussi prolonge la session, et **la rouvre si elle est
+    déjà morte** — sans quoi un foyer déjà cassé le resterait jusqu'à ce que
+    quelqu'un devine que se reconnecter répare.
+    """
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == status.HTTP_200_OK:
+            self._renew_session(request, response.data)
+        return response
+
+    def _renew_session(self, request, data):
+        user = self._user_of(data.get('refresh') or request.data.get('refresh'))
+        if user is None:
+            return
+
+        if self._session_already_holds(request, user):
+            # Session vivante, et déjà la bonne : on repousse seulement
+            # l'échéance. Un `auth_login` ferait tourner le jeton CSRF à chaque
+            # refresh — soit tous les quarts d'heure, sous les pieds d'un
+            # éventuel appel authentifié par session.
+            request.session.set_expiry(settings.SESSION_COOKIE_AGE)
+        else:
+            auth_login(
+                request,
+                user,
+                backend='django.contrib.auth.backends.ModelBackend',
+            )
+
+    @staticmethod
+    def _session_already_holds(request, user):
+        """La session porte-t-elle déjà *cet* utilisateur ?
+
+        La comparaison passe par le champ de clé primaire, comme le fait
+        ``django.contrib.auth._get_user_session_key`` : la session stocke une
+        chaîne, et comparer des chaînes marcherait tant que la clé est un
+        entier pour se mettre à mentir le jour où elle devient un UUID.
+        """
+        stored = request.session.get(SESSION_KEY)
+        if stored is None:
+            return False
+        try:
+            return User._meta.pk.to_python(stored) == user.pk
+        except (ValueError, TypeError, ValidationError):
+            return False
+
+    @staticmethod
+    def _user_of(raw_token):
+        """L'utilisateur que désigne un refresh token, ou ``None``.
+
+        Le jeton vient d'être validé par le serializer ; on le relit seulement
+        pour savoir *qui* rafraîchit. Un échec ici ne doit jamais transformer
+        un refresh réussi en erreur : au pire la session n'est pas prolongée,
+        ce qui est exactement l'état d'avant.
+        """
+        if not raw_token:
+            return None
+        try:
+            claims = RefreshToken(raw_token)
+        except TokenError:
+            return None
+        user_id = claims.get(jwt_settings.USER_ID_CLAIM)
+        if user_id is None:
+            return None
+        return User.objects.filter(**{jwt_settings.USER_ID_FIELD: user_id}).first()
 
 
 @api_view(['GET'])

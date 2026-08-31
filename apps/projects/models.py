@@ -51,6 +51,22 @@ class Project(HouseholdScopedModel):
     cover_interaction = models.ForeignKey("interactions.Interaction", on_delete=models.SET_NULL, null=True, blank=True, related_name="cover_for_projects")
     project_group = models.ForeignKey(ProjectGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name="projects")
     type = models.CharField(max_length=32, choices=Type.choices, default=Type.OTHER)
+    #: L'enveloppe à laquelle imputer par défaut les dépenses du chantier
+    #: (parcours 32, lot 4). Elle **classe**, elle ne plafonne pas : le plafond du
+    #: chantier reste `planned_budget`, et une enveloppe créée pour un chantier
+    #: naît sans `monthly_amount` — `Budget` est mensuel, un chantier est un
+    #: one-shot, et dériver un plafond mensuel afficherait « 0 € / 3 200 € » tous
+    #: les mois pour toujours une fois les travaux finis.
+    #:
+    #: `SET_NULL` : supprimer une enveloppe est supprimer une rubrique, et une
+    #: rubrique qui disparaît ne doit jamais emporter le chantier qui la citait.
+    default_budget = models.ForeignKey(
+        "budget.Budget",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_for_projects",
+    )
     document_links = GenericRelation("documents.DocumentLink")
 
     objects = HouseholdScopedManager()

@@ -1,14 +1,14 @@
-# French translations for House Backend
+# French translations for Maisonnée Backend
 # Copyright (C) 2026
-# This file is distributed under the same license as the House package.
+# This file is distributed under the same license as the Maisonnée package.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: House Backend 1.0\n"
+"Project-Id-Version: Maisonnée Backend 1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-29 03:56+0000\n"
 "PO-Revision-Date: 2026-02-11 21:22+0000\n"
-"Last-Translator: House Team\n"
+"Last-Translator: Maisonnée Team\n"
 "Language-Team: French\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
@@ -140,36 +140,36 @@ msgstr "Mot de passe"
 #: apps/accounts/templates/accounts/emails/password_reset.html:5
 #: apps/accounts/templates/accounts/emails/password_reset.txt:1
 msgid "Hello,"
-msgstr ""
+msgstr "Bonjour,"
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:6
 #: apps/accounts/templates/accounts/emails/password_reset.txt:3
 msgid "You requested a password reset for your Maisonnée account."
-msgstr ""
+msgstr "Vous avez demandé la réinitialisation du mot de passe de votre compte Maisonnée."
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:9
 msgid "Reset my password"
-msgstr ""
+msgstr "Réinitialiser mon mot de passe"
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:12
 msgid "Or copy and paste this URL into your browser:"
-msgstr ""
+msgstr "Ou copiez-collez cette adresse dans votre navigateur :"
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:15
 #: apps/accounts/templates/accounts/emails/password_reset.txt:9
 msgid ""
 "This link will expire in 3 days. If you did not request a password reset, "
 "you can safely ignore this email."
-msgstr ""
+msgstr "Ce lien expire dans 3 jours. Si vous n'avez pas demandé de réinitialisation, vous pouvez ignorer cet e-mail."
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:16
 #: apps/accounts/templates/accounts/emails/password_reset.txt:11
 msgid "— Maisonnée"
-msgstr ""
+msgstr "— Maisonnée"
 
 #: apps/accounts/templates/accounts/emails/password_reset.txt:5
 msgid "Click the link below to set a new password:"
-msgstr ""
+msgstr "Cliquez sur le lien ci-dessous pour choisir un nouveau mot de passe :"
 
 #: apps/accounts/views/api.py:60
 msgid "Email and password are required."
@@ -193,29 +193,23 @@ msgstr "L'email est requis."
 
 #: apps/accounts/views/api.py:120
 msgid "Reset your Maisonnée password"
-msgstr ""
+msgstr "Réinitialisez votre mot de passe Maisonnée"
 
 #: apps/accounts/views/api.py:130
 msgid "If an account with that email exists, a reset link has been sent."
-msgstr ""
+msgstr "Si un compte existe avec cette adresse e-mail, un lien de réinitialisation a été envoyé."
 
 #: apps/accounts/views/api.py:151
-#, fuzzy
-#| msgid "Email and password are required."
 msgid "uid, token and new_password are required."
-msgstr "L'email et le mot de passe sont requis."
+msgstr "uid, token et new_password sont requis."
 
 #: apps/accounts/views/api.py:160 apps/accounts/views/api.py:166
-#, fuzzy
-#| msgid "Invalid credentials."
 msgid "Invalid or expired reset link."
-msgstr "Identifiants invalides."
+msgstr "Lien de réinitialisation invalide ou expiré."
 
 #: apps/accounts/views/api.py:182
-#, fuzzy
-#| msgid "Password updated successfully."
 msgid "Password has been reset successfully."
-msgstr "Mot de passe mis à jour avec succès."
+msgstr "Mot de passe réinitialisé avec succès."
 
 #: apps/accounts/views/api.py:247
 msgid "new_password and confirm_password are required."
@@ -2031,11 +2025,10 @@ msgstr "Annulé."
 
 #: apps/telegram/service.py:406
 msgid ""
-"This Telegram account is not linked to House yet. Open the app settings and "
-"tap “Connect Telegram”."
-msgstr ""
-"Ce compte Telegram n'est pas encore lié à House. Ouvre les réglages de l'app "
-"et touche « Connecter Telegram »."
+"This Telegram account is not linked to Maisonnée yet. Open the app settings "
+"and tap “Connect Telegram”."
+msgstr "Ce compte Telegram n'est pas encore lié à Maisonnée. Ouvre les réglages de "
+"l'app et touche « Connecter Telegram »."
 
 #: apps/telegram/service.py:414
 msgid ""

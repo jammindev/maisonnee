@@ -37,7 +37,7 @@ Une fois l'approche validée, dérouler un plan concis en étapes (les items dev
 la checklist de l'issue). Garder ça léger — c'est de la voie rapide.
 
 ### 4. Créer l'issue GitHub (suivi)
-Créer l'issue **avant** de coder, sur `jammindev/house` :
+Créer l'issue **avant** de coder, sur `jammindev/maisonnee` :
 ```bash
 gh issue create \
   --title "<type>(<app>): <description courte>" \

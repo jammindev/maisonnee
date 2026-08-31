@@ -10,7 +10,7 @@
 
 ## Tableau de bord
 
-**Issue ombrelle : [#435](https://github.com/jammindev/house/issues/435)**
+**Issue ombrelle : [#435](https://github.com/jammindev/maisonnee/issues/435)**
 
 | Lot | Sujet | Statut | Issue |
 |---|---|---|---|

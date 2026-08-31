@@ -17,6 +17,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count
 
 from core.permissions import IsHouseholdMember
+from core.visibility import narrow_for
 from core.timezones import (
     current_month_range,
     end_of_day,
@@ -117,15 +118,8 @@ class InteractionViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     # ⚠️ Pas de ``is_private`` ici — voir la note jumelle de ``TaskViewSet``.
     # Le filtre servait à lire les items privés des autres, et le front ne l'a
-    # jamais envoyé.
-    #
-    # Noter que le queryset de cette vue, lui, ne filtre **pas encore** la
-    # confidentialité, contrairement à celui des tâches : une ``Interaction`` de
-    # type ``expense`` alimente ``interactions.queries.expenses()``, point de
-    # vérité unique de sept agrégations, et la masquer en liste sans la retirer
-    # des totaux donnerait deux définitions au même compteur. Retirer le filtre
-    # ferme la porte la plus large sans rien décider de ce que « dépense privée »
-    # devrait vouloir dire.
+    # jamais envoyé. Un filtre ne doit jamais pouvoir élargir ce que borne le
+    # queryset, et le queryset le borne désormais (voir ``get_queryset``).
     filterset_fields = ['type', 'created_by']
     search_fields = ['subject', 'content', 'enriched_text', 'tags__tag__name']
     ordering_fields = ['occurred_at', 'created_at', 'subject']
@@ -149,6 +143,25 @@ class InteractionViewSet(viewsets.ModelViewSet):
         selected_household = self.request.household
         if selected_household:
             queryset = queryset.filter(household=selected_household)
+
+        # Confidentialité — une note privée n'appartient qu'à qui l'a écrite.
+        #
+        # Le scope foyer ci-dessus ne dit rien de la confidentialité. ``is_private``
+        # existait sur ce modèle depuis l'origine, avec son exclusion des
+        # notifications (``interactions.notifications``) et sa garde dans les
+        # services d'édition — mais **aucun filtre ici**, si bien que la note privée
+        # d'un membre était servie à tous les autres. Le drapeau était décoratif là
+        # où il comptait le plus.
+        #
+        # Le filtre vit dans ``get_queryset`` et pas dans une permission objet : une
+        # permission ne se prononce que sur un objet déjà chargé, donc elle protège
+        # le détail et laisse passer la liste — qui est justement là où on lit les
+        # secrets des autres.
+        #
+        # ⚠️ L'exception ``expense`` est délibérée et documentée dans
+        # ``interactions.visibility`` : l'argent se **masque** au lot 4, il ne se
+        # cache pas, sous peine de donner deux définitions à sept agrégations.
+        queryset = narrow_for(queryset, self.request.user)
 
         # Exclure des types — le pendant de ``?type=``, et il doit être **serveur**.
         #

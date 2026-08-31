@@ -8,6 +8,7 @@ Coverage:
   3. documents vs photos split (DocumentLink type discrimination).
   4. timeline = notes + expenses (all linked Interactions).
   5. tab_counts is None on the list endpoint, a dict on the detail endpoint.
+  6. Le compteur compte **par lecteur** — parcours 33, lot 1.
 """
 import pytest
 from django.contrib.contenttypes.models import ContentType
@@ -297,3 +298,116 @@ class TestProjectTabCountsAPI:
         url = reverse("project-detail", kwargs={"pk": project.id})
         response = other_client.get(url)
         assert response.status_code in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
+
+
+# ---------------------------------------------------------------------------
+# TestTheCountAgreesWithTheTab — parcours 33, lot 1
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestTheCountAgreesWithTheTab:
+    """Un compteur ne peut pas avoir deux définitions — pas même face à lui-même.
+
+    Ces six nombres comptaient **tout le foyer** pendant que les listes derrière
+    chaque onglet filtrent la confidentialité : Bob lisait « Tâches (3) » et
+    l'onglet lui en servait deux. Le défaut n'est pas cosmétique — hors argent,
+    « privé » veut dire absent *sans trace*, et un compteur qui déborde annonce
+    l'existence de la tâche privée d'Alice à qui sait soustraire.
+
+    Le test compare le compteur à **la liste que le même lecteur reçoit**, plutôt
+    que de vérifier une valeur écrite en dur : c'est la seule forme qui reste vraie
+    le jour où la liste change de règle.
+    """
+
+    @pytest.fixture
+    def duo(self, db):
+        household = _household("Foyer à deux")
+        alice = UserFactory(email="tabcount-alice@example.com")
+        bob = UserFactory(email="tabcount-bob@example.com")
+        _membership(alice, household)
+        _membership(bob, household, role=HouseholdMember.Role.MEMBER)
+        return household, alice, bob
+
+    def test_a_private_task_is_counted_for_its_author_only(self, duo):
+        household, alice, bob = duo
+        project = _project(household, alice, title="Chantier partagé")
+        Task.objects.create(
+            household=household, created_by=alice,
+            subject="Publique", project=project,
+        )
+        Task.objects.create(
+            household=household, created_by=alice,
+            subject="Privée", project=project, is_private=True,
+        )
+
+        assert project_tab_counts(project, alice)["tasks"] == 2
+        assert project_tab_counts(project, bob)["tasks"] == 1
+
+    def test_a_private_note_is_counted_for_its_author_only(self, duo):
+        household, alice, bob = duo
+        project = _project(household, alice, title="Chantier partagé")
+        _interaction(household, alice, project, itype="note", subject="Publique")
+        private = _interaction(household, alice, project, itype="note", subject="Privée")
+        private.is_private = True
+        private.save(update_fields=["is_private"])
+
+        assert project_tab_counts(project, alice)["notes"] == 2
+        assert project_tab_counts(project, bob)["notes"] == 1
+        assert project_tab_counts(project, bob)["timeline"] == 1
+
+    def test_a_private_document_is_counted_for_its_author_only(self, duo):
+        household, alice, bob = duo
+        project = _project(household, alice, title="Chantier partagé")
+
+        shared = _document(household, alice, name="Devis partagé")
+        secret = _document(household, alice, name="Devis confidentiel")
+        secret.is_private = True
+        secret.save(update_fields=["is_private"])
+        link_document(entity=project, document=shared, user=alice)
+        link_document(entity=project, document=secret, user=alice)
+
+        assert project_tab_counts(project, alice)["documents"] == 2
+        assert project_tab_counts(project, bob)["documents"] == 1
+
+    def test_the_count_matches_the_list_the_same_reader_gets(self, duo):
+        """Le contrôle qui compte : l'onglet et son nombre, pour le même lecteur."""
+        household, alice, bob = duo
+        project = _project(household, alice, title="Chantier partagé")
+        Task.objects.create(
+            household=household, created_by=alice, subject="Publique", project=project,
+        )
+        Task.objects.create(
+            household=household, created_by=alice,
+            subject="Privée", project=project, is_private=True,
+        )
+
+        for user in (alice, bob):
+            client = _client_for(user)
+            detail = client.get(reverse("project-detail", args=[project.id]))
+            assert detail.status_code == status.HTTP_200_OK
+            announced = detail.data["tab_counts"]["tasks"]
+
+            listed = client.get(reverse("task-list"), {"project": str(project.id)})
+            assert listed.status_code == status.HTTP_200_OK
+            rows = listed.data if isinstance(listed.data, list) else listed.data["results"]
+
+            assert announced == len(rows), (
+                f"{user.email} : l'onglet annonce {announced} tâches et la liste en "
+                f"sert {len(rows)}"
+            )
+
+    def test_a_private_expense_is_counted_for_everyone(self, duo):
+        """L'exception de l'argent, ici aussi — et pour la même raison.
+
+        Une dépense ne disparaît d'aucune liste : sept agrégations la lisent. Le
+        compteur doit donc l'annoncer aux deux lecteurs, sans quoi l'onglet
+        promettrait moins que ce qu'il sert.
+        """
+        household, alice, bob = duo
+        project = _project(household, alice, title="Chantier partagé")
+        expense = _interaction(household, alice, project, itype="expense", subject="Achat")
+        expense.is_private = True
+        expense.save(update_fields=["is_private"])
+
+        assert project_tab_counts(project, alice)["expenses"] == 1
+        assert project_tab_counts(project, bob)["expenses"] == 1

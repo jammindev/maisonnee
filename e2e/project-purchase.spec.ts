@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 /**
  * Parcours 08 — Lot 1.1 : enregistrer une dépense liée à un projet.
  *
- * Issues: https://github.com/jammindev/house/issues/123
- *         https://github.com/jammindev/house/issues/131 (onglet Dépenses)
+ * Issues: https://github.com/jammindev/maisonnee/issues/123
+ *         https://github.com/jammindev/maisonnee/issues/131 (onglet Dépenses)
  *
  * Le test déclenche le quick-add depuis la card d'un projet, vérifie que
  * l'`Interaction(type=expense, kind='project_purchase')` est créée et listée

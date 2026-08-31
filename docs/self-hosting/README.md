@@ -18,7 +18,7 @@ These pages are the operator's manual. They assume Docker and nothing else.
 ## Start here
 
 ```bash
-curl -O https://raw.githubusercontent.com/jammindev/house/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/jammindev/maisonnee/main/docker-compose.yml
 docker compose up -d
 ```
 

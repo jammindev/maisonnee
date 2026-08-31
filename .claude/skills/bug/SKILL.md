@@ -35,7 +35,7 @@ Si le bug n'est pas reproductible, le dire et proposer comment instrumenter — 
 corriger à l'aveugle.
 
 ### 3. Créer l'issue GitHub (suivi)
-Sur `jammindev/house`, **avant** le fix :
+Sur `jammindev/maisonnee`, **avant** le fix :
 ```bash
 gh issue create \
   --title "fix(<app>): <symptôme court>" \

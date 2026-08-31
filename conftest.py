@@ -18,7 +18,14 @@ covering both DB-provisioning paths:
 
 This is the ``--nomigrations`` counterpart of agent/0008 (and mirrors what
 apps/agent/tests/conftest.py does post-setup for ``unaccent``).
+
+Ce fichier porte aussi le **caviardage des rapports d'échec** — voir
+``pytest_runtest_makereport`` en bas. Un test qui rougit ne doit pas publier
+l'environnement dans lequel il tournait.
 """
+import os
+import re
+
 import pytest
 
 
@@ -84,3 +91,110 @@ def _clear_throttle_cache():
     cache.clear()
     yield
     cache.clear()
+
+
+# --------------------------------------------------------------------------- #
+# Caviardage des rapports d'échec
+# --------------------------------------------------------------------------- #
+#
+# Constaté en écrivant le garde-fou de nom de dépôt : une assertion portant
+# directement sur `os.environ.get("…")` fait introspecter la table **entière** par
+# pytest, qui l'imprime dans le rapport d'échec. La sortie contenait un
+# `GITLAB_PRIVATE_TOKEN` exporté depuis `~/.zshrc` — un jeton qui n'a rien à voir
+# avec ce projet, hérité par tout processus lancé depuis le shell.
+#
+# Sur ce dépôt **public**, ce rapport part dans un log GitHub Actions lisible par
+# n'importe qui. Et le chemin n'était surveillé par rien : `gitleaks` scanne les
+# commits, pas la sortie des tests.
+#
+# Le site fautif a été corrigé, mais corriger un site ne ferme pas la famille :
+# n'importe quel `assert` futur sur un mapping d'environnement, un objet de
+# configuration ou une réponse HTTP peut rouvrir le trou, et **en revue le diff
+# fautif ressemble exactement au diff juste**. D'où ce filet, qui ne dépend
+# d'aucune discipline d'écriture.
+
+_SECRET_NAME = re.compile(
+    r"(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY|PRIVATE_KEY|"
+    r"ACCESS_KEY|AUTH|DSN|SENTRY|VAPID|_KEY)",
+    re.IGNORECASE,
+)
+
+# Préfixes de jetons connus, pour ce qui ne vient pas de l'environnement (lu dans
+# un fichier, forgé dans une fixture). Le filet ne peut pas tout voir — ces
+# motifs couvrent les émetteurs que ce projet croise réellement.
+_SECRET_SHAPES = re.compile(
+    r"\b("
+    r"glpat-[A-Za-z0-9._-]{8,}"          # GitLab
+    r"|gh[pousr]_[A-Za-z0-9]{16,}"       # GitHub (classique)
+    r"|github_pat_[A-Za-z0-9_]{16,}"     # GitHub (fine-grained)
+    r"|sk-ant-[A-Za-z0-9._-]{16,}"       # Anthropic
+    r"|npm_[A-Za-z0-9]{16,}"             # npm
+    r"|pk_[A-Za-z0-9]{8,}\.[A-Za-z0-9._-]{8,}"  # Voyage
+    r"|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"  # JWT
+    r")",
+)
+
+_REDACTED = "<caviardé par conftest>"
+
+# Valeurs trop courtes ou trop communes : les caviarder ferait plus de bruit que
+# de bien (`DEBUG=1`, `AUTH=none`), et un secret de 7 caractères n'en est pas un.
+_MIN_SECRET_LENGTH = 8
+
+
+def _secret_values():
+    """Les valeurs réellement présentes dans l'environnement, à caviarder.
+
+    Lu à chaque appel plutôt que mémoïsé : un test peut poser une variable via
+    `monkeypatch.setenv`, et c'est justement le genre de valeur qu'on ne veut pas
+    voir ressortir.
+    """
+    return {
+        value
+        for name, value in os.environ.items()
+        if _SECRET_NAME.search(name) and len(value) >= _MIN_SECRET_LENGTH
+    }
+
+
+def _redact(text):
+    """Rend `text` publiable, et dit s'il a fallu y toucher."""
+    cleaned = text
+    for value in sorted(_secret_values(), key=len, reverse=True):
+        cleaned = cleaned.replace(value, _REDACTED)
+    cleaned = _SECRET_SHAPES.sub(_REDACTED, cleaned)
+    return cleaned, cleaned != text
+
+
+def _scrub(report):
+    """Remplace le rapport d'échec par sa version caviardée, si nécessaire.
+
+    Le remplacement dégrade un `longrepr` riche en texte brut (plus de couleurs,
+    plus de surlignage de la ligne fautive), donc il n'a lieu **que** si un
+    secret a été trouvé. Un échec ordinaire garde toute sa lisibilité ; seuls les
+    rapports qui fuient sont dégradés, et pour ceux-là c'est le bon échange.
+    """
+    if not getattr(report, "longrepr", None):
+        return
+    try:
+        text = report.longreprtext
+    except (AttributeError, UnicodeDecodeError):  # longrepr exotique
+        return
+    cleaned, touched = _redact(text)
+    if touched:
+        report.longrepr = cleaned
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    _scrub(report)
+    return report
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_make_collect_report(collector):
+    # Le hook qui **produit** le rapport de collecte, pas `pytest_collectreport`
+    # qui ne fait que le recevoir : un wrapper posé sur celui-là caviarderait
+    # après que le reporter de terminal l'a déjà lu.
+    report = yield
+    _scrub(report)
+    return report

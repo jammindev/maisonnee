@@ -247,7 +247,7 @@ Cadré le 2026-07-21. **Chantier technique transverse** (pas de surface UI nouve
 - Lot 4 du parcours 07 — mémoire conversationnelle multi-tour (basculée V2). À arbitrer si l'usage one-shot devient frustrant.
 - Streaming de réponse dans le chat agent (UX, pas critique tant que latence reste à 2-4s).
 - `OllamaClient` pour faire tourner l'agent en local (l'abstraction `LLMClient` est déjà prête).
-- **Chiffrement des documents** (milestone GitHub [#8](https://github.com/jammindev/house/milestone/8)) — protéger le contenu des documents/photos, aujourd'hui stockés en clair (`MEDIA_ROOT` sur le VPS, `ocr_text` en clair en DB). Deux phases :
+- **Chiffrement des documents** (milestone GitHub [#8](https://github.com/jammindev/maisonnee/milestone/8)) — protéger le contenu des documents/photos, aujourd'hui stockés en clair (`MEDIA_ROOT` sur le VPS, `ocr_text` en clair en DB). Deux phases :
   - **Phase 1 — chiffrement au repos** (le serveur garde la clé) : protège contre un vol de disque / backup qui fuite, **sans casser** OCR / full-text / RAG. Meilleur rapport bénéfice/coût, à faire en premier.
   - **Phase 2 — coffre E2EE sélectif** (le client garde la clé) : s'appuie sur `documents.is_private`, l'user marque un doc comme « coffre » → chiffré côté client, **exclu** de l'OCR / full-text / RAG (trade-off assumé et affiché).
   - Hors scope : E2EE total du corpus (casserait le RAG serveur-side).

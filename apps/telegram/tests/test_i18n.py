@@ -16,7 +16,7 @@ BOT_STRINGS = [
     "Nothing to undo.",
     "Fresh start — your next message opens a new conversation.",
     "The assistant is unavailable right now — please try again in a minute.",
-    "This Telegram account is not linked to House yet. "
+    "This Telegram account is not linked to Maisonnée yet. "
     "Open the app settings and tap “Connect Telegram”.",
 ]
 

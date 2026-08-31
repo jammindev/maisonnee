@@ -20,7 +20,7 @@ export interface ChangelogState {
 }
 
 /** Base publique du repo — sert à construire les liens vers les PR. */
-export const REPO_URL = 'https://github.com/jammindev/house';
+export const REPO_URL = 'https://github.com/jammindev/maisonnee';
 
 export function prUrl(prNumber: number): string {
   return `${REPO_URL}/pull/${prNumber}`;

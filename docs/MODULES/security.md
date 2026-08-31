@@ -197,6 +197,41 @@ est appliqué aux trois points d'entrée : `agent/tools.py::resolve_entity`
 les listes. Le tool d'écriture `create_entity` passe par les services métier, qui
 portent la même contrainte.
 
+### La confidentialité intra-foyer — la deuxième frontière
+
+Le scoping tient la frontière **entre** foyers ; `is_private` en trace une seconde
+**à l'intérieur** de chacun : moi contre les autres membres. Fiche complète :
+`docs/fiches/CONFIDENTIALITE.md`. Ce qu'il faut savoir ici :
+
+- Elle est **plus fragile** que la première, et pour une raison structurelle : le
+  scope foyer vient du manager par défaut, donc on l'obtient sans y penser. La
+  confidentialité doit être ajoutée explicitement à chaque lecture, et un
+  `get_queryset()` qui l'oublie fonctionne parfaitement.
+- Elle est **invisible deux fois** : en revue, la clause manquante ne se distingue
+  pas de la clause présente ; à l'usage, il faut deux comptes dans le même foyer
+  pour la voir manquer. C'est la définition d'un contrôle à écrire.
+- **Une déclaration par modèle** (`core.visibility.REGISTRY`, alimenté depuis
+  l'`apps.py` de l'app propriétaire) et **un seul point d'application**
+  (`narrow_for`). L'implémentation du couple standard est `visible_to_creator`,
+  fail-closed, adossée à `created_by` et jamais au rôle.
+- **Sept portes.** La liste REST, plus les six chemins de retrieval (palette ⌘K,
+  `search_household`, `get_entity`, `get_related`, `list_entities`, contexte
+  ancré) — qui ne passent **jamais** par le viewset. Un modèle non déclaré est donc
+  **absent de sa propre liste et citable par l'assistant** : c'est exactement ce qui
+  a vécu en production pour les tâches et les notes, le correctif précédent n'ayant
+  traité que les documents.
+- **Masquer ≠ cacher.** Ce qui alimente un compteur partagé se masque (l'argent),
+  ce qui n'alimente rien se cache. Une dépense privée reste dans toutes les
+  agrégations : la cacher d'une liste sans la retirer des totaux donnerait deux
+  valeurs au même compteur selon le lecteur.
+- **Un compteur qui déborde est une fuite.** Un onglet annonçant « Tâches (3) » et
+  en servant deux trahit l'existence de l'item privé à qui sait soustraire.
+
+Régressions : `apps/core/tests/test_privacy_isolation.py` (quatre parties, dont la
+n°4 qui refuse un modèle privatisable non enregistré — et qui lit le registre, pas
+le champ, pour pouvoir voir arriver une confidentialité héritée) et
+`apps/agent/tests/test_private_visibility.py`.
+
 ### Les liaisons polymorphes
 
 `interactions.services.resolve_allocation_source` **récupère l'objet et compare

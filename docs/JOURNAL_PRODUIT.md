@@ -185,4 +185,4 @@ Axes suivants :
 
 ## Backlog d'idées futures
 
-- [GitHub issues — label `idea`](https://github.com/jammindev/house/issues?q=is%3Aopen+is%3Aissue+label%3Aidea)
+- [GitHub issues — label `idea`](https://github.com/jammindev/maisonnee/issues?q=is%3Aopen+is%3Aissue+label%3Aidea)

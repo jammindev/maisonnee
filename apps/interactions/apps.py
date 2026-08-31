@@ -10,6 +10,13 @@ class InteractionsConfig(AppConfig):
         from agent.searchables import SearchableSpec, register
         from agent.writables import WritableSpec, register as register_writable
         from .models import Interaction
+        from core.visibility import PrivacySpec, register as register_privacy
+        from .visibility import visible_interactions
+
+        # Confidentialité — la déclaration vit ici, une seule fois, et vaut pour
+        # toutes les portes de lecture (liste REST, palette ⌘K, agent, contexte
+        # ancré). Voir ``core.visibility``.
+        register_privacy(PrivacySpec(model=Interaction, narrow=visible_interactions))
 
         register(SearchableSpec(
             entity_type='interaction',

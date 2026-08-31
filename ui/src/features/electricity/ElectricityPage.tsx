@@ -518,7 +518,7 @@ export default function ElectricityPage() {
           <select
             value={selectedBoardId}
             onChange={(e) => setSelectedBoardId(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            className="text-base rounded-md border border-border bg-background px-3 py-2 md:text-sm"
           >
             {boards.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>

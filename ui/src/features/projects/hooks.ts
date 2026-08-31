@@ -15,6 +15,10 @@ import {
   pinProject,
   unpinProject,
   registerProjectPurchase,
+  assistantStep,
+  assistantCreate,
+  type AssistantPlan,
+  type AssistantStepInput,
   type ProjectListItem,
   type ProjectInteractionItem,
   type ProjectPayload,
@@ -152,5 +156,43 @@ export function usePinProject() {
       });
     },
     onSettled: () => invalidate('projects'),
+  });
+}
+
+// --- Création assistée (parcours 32) ----------------------------------------
+
+/**
+ * Un tour d'entretien. **Sans invalidation** : cet endpoint n'écrit rien, donc
+ * il n'y a aucun cache à périmer. Le déclarer ici quand même serait dire le
+ * contraire de ce que fait le serveur.
+ */
+export function useAssistantStep() {
+  const { t } = useTranslation();
+  return useMutation({
+    mutationFn: (input: AssistantStepInput) => assistantStep(input),
+    onError: () => toast({ description: t('projects.assistant.failed'), variant: 'destructive' }),
+  });
+}
+
+/**
+ * Écrit le plan relu.
+ *
+ * ⚠️ **Trois racines déclarées, parce que trois sont écrites.** Un
+ * `invalidate('projects')` seul ne suffirait pas : le graphe de
+ * `lib/invalidate.ts` dit « le projet *lit* les tâches et les interactions »,
+ * donc écrire `projects` périme le dashboard mais **pas** la liste des tâches ni
+ * le journal. Or cette mutation y crée vraiment des lignes. La règle est de
+ * déclarer ce qu'on écrit, et on écrit les trois.
+ */
+export function useCreateProjectFromPlan() {
+  const invalidate = useInvalidate();
+  const { t } = useTranslation();
+  return useMutation({
+    mutationFn: (plan: AssistantPlan) => assistantCreate(plan),
+    onSuccess: () => {
+      invalidate('projects', 'tasks', 'interactions');
+      toast({ description: t('projects.assistant.created'), variant: 'success' });
+    },
+    onError: () => toast({ description: t('common.saveFailed'), variant: 'destructive' }),
   });
 }

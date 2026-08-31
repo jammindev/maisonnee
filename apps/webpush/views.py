@@ -73,7 +73,7 @@ class TestPushView(APIView):
         require_capability("push")
         sent = send_web_push(
             request.user,
-            "House",
+            "Maisonnée",
             "🔔 Notification de test",
             url="/app/dashboard",
             tag="webpush-test",

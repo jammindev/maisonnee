@@ -52,6 +52,9 @@ export interface InteractionListItem {
   zone_id_list?: string[];
   document_count: number;
   created_by_name?: string;
+  /** Privé = seul l'auteur la voit. Sans effet sur une dépense, qui alimente
+   * sept agrégations et ne disparaît donc d'aucune liste. */
+  is_private?: boolean;
   metadata?: Record<string, unknown>;
   // Expense columns (promoted out of metadata). Only meaningful for type='expense'.
   amount?: string | null;
@@ -82,6 +85,8 @@ export interface CreateInteractionInput {
   occurred_at: string;
   zone_ids: string[];
   tags_input?: string[];
+  /** Privé = seul l'auteur la voit (sans effet sur une dépense). */
+  is_private?: boolean;
   metadata?: Record<string, unknown>;
   amount?: string | null;
   kind?: string;

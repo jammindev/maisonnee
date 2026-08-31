@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
  * Parcours friction utilisateur : "j'ai acheté 3,8 stères de bois,
  * je veux les rentrer dans mon stock et tracer la dépense en un seul geste".
  *
- * Issue: https://github.com/jammindev/house/issues/116
+ * Issue: https://github.com/jammindev/maisonnee/issues/116
  */
 
 test('parcours achat de stock — bois de chauffage 3,8 stères', async ({ page }) => {

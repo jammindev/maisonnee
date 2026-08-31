@@ -141,7 +141,12 @@ got=$(code /app/money)
 page=$(body /app/money)
 case "$page" in
   *"<hr><center>nginx</center>"*) fail "la page d'erreur nginx brute est servie" ;;
-  *"House revient"*)              pass "la page de maintenance House est servie" ;;
+    # Motif volontairement **sans accent** : ce `case` compare des octets, et faire
+    # dépendre un job bloquant pour le deploy de l'encodage d'un « é » n'apporte
+    # rien. Ce test atteste qu'une page de maintenance est servie ; que celle-ci
+    # dise « Maisonnée » est l'affaire de `apps/core/tests/test_product_name.py`.
+    # Une assertion par test — et le nom du produit peut changer sans toucher ici.
+    *"revient dans un instant"*)    pass "la page de maintenance est servie" ;;
   *)                              fail "corps inattendu : $(printf '%s' "$page" | head -c 120)" ;;
 esac
 

@@ -39,7 +39,7 @@ on:
 
 jobs:
   claude-review:
-    if: github.repository == 'jammindev/house'
+    if: github.repository == 'jammindev/maisonnee'
     runs-on: ubuntu-latest
     permissions:
       contents: read

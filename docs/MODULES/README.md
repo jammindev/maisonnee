@@ -2,7 +2,7 @@
 
 Référence architecturale de chaque app Django / feature React. Mise à jour : avril 2026.
 
-> Ces fiches sont une **référence**, pas un backlog. Le backlog vit dans [GitHub issues](https://github.com/jammindev/house/issues) (filtrable par label `app:<name>`). Si une fiche mentionne un comportement, le code en est l'autorité.
+> Ces fiches sont une **référence**, pas un backlog. Le backlog vit dans [GitHub issues](https://github.com/jammindev/maisonnee/issues) (filtrable par label `app:<name>`). Si une fiche mentionne un comportement, le code en est l'autorité.
 
 Chaque fiche suit le même format :
 
@@ -62,4 +62,4 @@ Lecture recommandée pour reprendre un module après pause — pour les bugs et 
 - [`docs/FEATURE_PATTERN.md`](../FEATURE_PATTERN.md) — pattern à suivre pour toute nouvelle feature
 - [`CLAUDE.md`](../../CLAUDE.md) — comment travailler + règles projet
   (`AGENTS.md` est un lien symbolique vers ce même fichier)
-- **GitHub issues** ([`jammindev/house`](https://github.com/jammindev/house/issues)) — source unique de vérité du backlog
+- **GitHub issues** ([`jammindev/maisonnee`](https://github.com/jammindev/maisonnee/issues)) — source unique de vérité du backlog

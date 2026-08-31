@@ -1,11 +1,19 @@
-"""La confidentialité d'un document vaut aussi pour l'assistant.
+"""La confidentialité vaut aussi pour l'assistant — pour les quatre modèles.
 
-Un document `is_private=True` n'est visible que de son déposant : l'API documents
-l'applique depuis toujours (`documents.views.get_documents_queryset_for_request`).
-La couche de retrieval de l'agent, elle, ne connaissait que le **foyer** — pas le
-**lecteur**. L'OCR d'un document privé était donc cherchable et citable par
-n'importe quel autre membre, par trois portes qui ne le disaient nulle part : la
-palette du haut, le tool `search_household`, et `get_entity`.
+Un item `is_private=True` n'est visible que de son déposant : les listes REST
+l'appliquent. La couche de retrieval de l'agent, elle, ne connaissait que le
+**foyer** — pas le **lecteur**. L'OCR d'un document privé était donc cherchable et
+citable par n'importe quel autre membre, par trois portes qui ne le disaient nulle
+part : la palette du haut, le tool `search_household`, et `get_entity`.
+
+Le correctif d'alors n'a fermé **qu'une** de ces serrures : `documents` était le
+seul `SearchableSpec` à déclarer `visibility=`. La tâche privée d'Alice et sa note
+privée restaient donc citables par Bob, par les mêmes portes, et ce fichier ne
+pouvait pas le voir — il ne parlait que de documents. C'est la leçon générale de
+cette famille : **un garde-fou écrit pour un cas passe pour un garde-fou général**,
+et personne ne relit son périmètre. D'où la classe paramétrée en bas, et la partie
+n°4 de `core/tests/test_privacy_isolation.py`, qui refuse désormais un spec
+privatisable sans restriction déclarée.
 
 C'est la règle « un écart ne se dit jamais deux fois avec deux voix » appliquée à
 la visibilité : deux définitions de ce qu'un utilisateur a le droit de voir, et
@@ -249,3 +257,192 @@ class TestTheTwoDoorsAgree:
         assert not leaked, (
             f"l'assistant renvoie à {who} des documents que la liste lui cache : {leaked}"
         )
+
+
+# ── Les trois autres modèles privatisables ───────────────────────────────────
+
+
+@pytest.fixture
+def private_task(shared_household, alice):
+    from tasks.models import Task
+
+    return Task.objects.create(
+        household=shared_household,
+        created_by=alice,
+        subject=f"Commander le gâteau {NEEDLE}",
+        content="Surprise — ne rien dire.",
+        is_private=True,
+    )
+
+
+@pytest.fixture
+def public_task(shared_household, alice):
+    from tasks.models import Task
+
+    return Task.objects.create(
+        household=shared_household,
+        created_by=alice,
+        subject=f"Tailler le {NEEDLE}",
+        content="",
+        is_private=False,
+    )
+
+
+@pytest.fixture
+def private_note(shared_household, alice):
+    from django.utils import timezone
+
+    from interactions.models import Interaction
+
+    return Interaction.objects.create(
+        household=shared_household,
+        created_by=alice,
+        subject=f"Idée de cadeau — {NEEDLE}",
+        content="Ne pas en parler à Bob.",
+        type="note",
+        is_private=True,
+        occurred_at=timezone.now(),
+    )
+
+
+@pytest.fixture
+def public_note(shared_household, alice):
+    from django.utils import timezone
+
+    from interactions.models import Interaction
+
+    return Interaction.objects.create(
+        household=shared_household,
+        created_by=alice,
+        subject=f"Récolte de {NEEDLE}",
+        content="",
+        type="note",
+        is_private=False,
+        occurred_at=timezone.now(),
+    )
+
+
+def _found_ids(user, entity_type: str) -> set[str]:
+    resp = _client_for(user).get(SEARCH_URL, {"q": NEEDLE})
+    assert resp.status_code == 200
+    return {
+        r["object_id"]
+        for r in resp.json()["results"]
+        if r["entity_type"] == entity_type
+    }
+
+
+@pytest.mark.django_db
+class TestTheAssistantHonoursTaskAndNotePrivacy:
+    """Mêmes portes, mêmes garanties — pour la tâche et pour la note.
+
+    Le témoin partagé n'est pas décoratif : sans lui, un retrieval cassé (mot
+    absent de l'index, config de recherche changée) ferait passer le test pour une
+    bonne raison alors que rien n'aurait été trouvé du tout.
+    """
+
+    @pytest.mark.parametrize(
+        "private_fixture,public_fixture,entity_type",
+        [
+            ("private_task", "public_task", "task"),
+            ("private_note", "public_note", "interaction"),
+        ],
+    )
+    def test_the_palette_hides_it_from_the_other_member(
+        self, request, private_fixture, public_fixture, entity_type, bob
+    ):
+        private_item = request.getfixturevalue(private_fixture)
+        public_item = request.getfixturevalue(public_fixture)
+
+        found = _found_ids(bob, entity_type)
+        assert str(private_item.id) not in found
+        assert str(public_item.id) in found, "le témoin partagé doit rester trouvable"
+
+    @pytest.mark.parametrize(
+        "private_fixture,entity_type,label",
+        [
+            ("private_task", "task", "Commander le gâteau"),
+            ("private_note", "interaction", "Idée de cadeau"),
+        ],
+    )
+    def test_the_search_tool_and_get_entity_refuse_it(
+        self, request, private_fixture, entity_type, label, bob, shared_household
+    ):
+        private_item = request.getfixturevalue(private_fixture)
+
+        assert label not in _tool_search_text(bob, shared_household)
+
+        result = tools.dispatch(
+            "get_entity",
+            {"entity_type": entity_type, "id": str(private_item.id)},
+            household=shared_household,
+            user=bob,
+        )
+        assert label not in result.rendered
+        assert not result.hits
+
+    def test_a_private_task_does_not_ride_into_a_shared_projects_context(
+        self, bob, alice, shared_household, private_task
+    ):
+        """La porte la plus discrète, côté tâches.
+
+        ``projects.apps._project_related`` remonte les tâches du chantier. Une tâche
+        privée rattachée à un projet que tout le foyer consulte serait injectée dans
+        la conversation de qui l'ouvre — sans passer par aucune recherche.
+        """
+        from projects.models import Project
+
+        project = Project.objects.create(
+            household=shared_household, created_by=alice, title="Chantier partagé"
+        )
+        private_task.project = project
+        private_task.save(update_fields=["project"])
+
+        for viewer, expected in ((bob, False), (alice, True)):
+            ctx = build_entity_context("project", str(project.id), shared_household, viewer)
+            assert ctx is not None
+            labels = {hit.label for hit in ctx.hits}
+            assert (private_task.subject in labels) is expected, (
+                f"contexte du projet pour {viewer.email} : {labels}"
+            )
+
+    @pytest.mark.parametrize(
+        "private_fixture,entity_type",
+        [("private_task", "task"), ("private_note", "interaction")],
+    )
+    def test_the_author_still_finds_her_own(
+        self, request, private_fixture, entity_type, alice
+    ):
+        private_item = request.getfixturevalue(private_fixture)
+        assert str(private_item.id) in _found_ids(alice, entity_type)
+
+
+@pytest.mark.django_db
+class TestAPrivateExpenseIsStillCitable:
+    """L'exception de l'argent vaut aussi pour l'assistant, et pour la même raison.
+
+    Une dépense ne disparaît d'aucune liste — sept agrégations la lisent. Si le
+    retrieval la cachait alors que la page Activité la sert, l'agent et l'écran se
+    contrediraient sur un montant, ce qui est exactement le défaut que
+    ``interactions.visibility`` existe pour empêcher. Son contenu sera masqué au
+    lot 4 ; son existence, jamais.
+    """
+
+    def test_the_other_member_can_still_find_it(self, bob, shared_household, alice):
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from interactions.models import Interaction
+
+        expense = Interaction.objects.create(
+            household=shared_household,
+            created_by=alice,
+            subject=f"Achat de {NEEDLE}",
+            type="expense",
+            is_private=True,
+            amount=Decimal("42.00"),
+            occurred_at=timezone.now(),
+        )
+
+        assert str(expense.id) in _found_ids(bob, "interaction")

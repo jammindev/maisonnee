@@ -111,6 +111,32 @@ story peut traverser trois specs, une spec peut couvrir zéro story.
 > recette manuelle, notée comme telle dans le compte rendu d'implémentation. Un ✅
 > sur cette ligne ne couvre que la génération.
 
+## Création assistée d'un chantier (`projects`) — [parcours 32](parcours/PARCOURS_32_RACONTER_UN_CHANTIER.md)
+
+| ID | Story | Statut | Preuve |
+|---|---|---|---|
+| PROJ-01 | En tant que membre, je veux décrire mon chantier en une phrase et me faire poser des questions, afin de créer un projet sans connaître d'avance le budget ni les dates | ⬜ | — |
+| PROJ-02 | En tant que membre, je veux que l'entretien s'arrête de lui-même au bout de six questions, afin qu'il ne s'éternise jamais | ⬜ | — |
+| PROJ-03 | En tant que membre, je veux pouvoir couper court à tout moment, afin de générer dès que j'estime en avoir assez dit | ⬜ | — |
+| PROJ-04 | En tant que membre, je veux répondre à une question d'argent dans un champ de montant, afin que « 12,5 » enregistre 12,50 € et non 512 € | ⬜ | — |
+| PROJ-05 | En tant que membre, je veux que l'assistant me donne un ordre de grandeur sans remplir le champ, afin que le budget inscrit reste le mien | ⬜ | — |
+| PROJ-06 | En tant que membre, je veux relire le plan et décocher ce qui ne me sert pas, afin que rien d'inutile ne soit créé | ⬜ | — |
+| PROJ-07 | En tant que membre, je veux corriger le titre d'une tâche proposée avant sa création, afin de ne pas avoir à la rouvrir ensuite | ⬜ | — |
+| PROJ-08 | En tant que membre, je veux qu'abandonner l'entretien n'écrive rien, afin de pouvoir essayer sans conséquence | ⬜ | — |
+| PROJ-09 | En tant que membre, je veux que les tâches et notes créées portent les zones du projet, afin de retrouver mon chantier par l'endroit | ⬜ | — |
+| PROJ-10 | En tant que membre, je veux qu'une tâche visant explicitement une autre pièce soit rangée dans cette pièce, afin que l'héritage ne mente pas | ⬜ | — |
+| PROJ-11 | En tant que membre, je veux que la création échoue en entier plutôt qu'à moitié, afin de ne jamais hériter d'un chantier incomplet | ⬜ | — |
+| PROJ-12 | En tant que membre, je veux une enveloppe budgétaire pour mon chantier, non plafonnée et pré-sélectionnée à l'achat, afin que ses dépenses soient classées sans y penser | ⬜ | — |
+| PROJ-13 | En tant que membre, je veux joindre un devis pendant l'entretien et le retrouver sur le projet créé, afin de ne pas le ranger deux fois | ⬜ | — |
+| PROJ-14 | En tant qu'auto-hébergeur sans clé Anthropic, je veux que l'écran ne me propose pas l'assistant, afin de créer mes projets par le formulaire sans buter sur une promesse | ⬜ | — |
+
+> `PROJ-04` et `PROJ-05` ne se prouvent qu'en **vrai navigateur** : la première
+> parce que le bug qu'elle ferme (« 12,5 » → 512 €) n'existe que dans un moteur
+> réel et jamais en jsdom ; la seconde parce qu'un champ vide contre un champ
+> pré-rempli est une propriété de l'écran, pas de la réponse HTTP.
+
+---
+
 ---
 
 ## Modules antérieurs — à rétro-documenter

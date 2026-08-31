@@ -144,6 +144,25 @@ déploiement gardent `house`. Renommer le code coûterait une réécriture trans
 et un risque de casse sur le déploiement, pour zéro bénéfice utilisateur — un
 self-hoster ne lit jamais un nom de module Python.
 
+**Fait le 2026-08-18** : le dépôt est passé de `jammindev/house` à
+`jammindev/maisonnee` — dernière pièce de façade qui portait encore l'ancien nom,
+alors que l'image (`ghcr.io/jammindev/maisonnee`) et la démo
+(`demo.maisonnee.jammin-dev.com`) l'avaient déjà quitté. Deux noms publics du même
+produit, c'est la règle « deux définitions qui divergent font perdre leur crédit
+aux deux » appliquée à une marque.
+
+Ce que ce renommage a appris, et qui vaut pour tout renommage futur : **trois
+`if: github.repository == 'jammindev/house'`** gardaient le job `deploy` de
+`ci.yml` et les deux workflows Claude. Une égalité littérale sur le slug ne casse
+pas quand elle devient fausse — **elle rend la condition fausse, le job est
+sauté, et la CI reste verte.** Un push sur `main` aurait cessé de déployer sans
+qu'aucun signal ne l'annonce : exactement la famille de défaut que ce dépôt sort
+de l'espace latent. D'où le garde-fou
+`apps/core/tests/test_brand_assets.py::TestTheRepositoryHasASingleName`, qui
+refuse l'ancien slug hors des trois documents où il est un **fait daté** (ce
+fichier, son backlog, le journal de cadrage) et vérifie que chaque littéral
+`github.repository ==` nomme le dépôt courant.
+
 ## Ce qu'on ne fait pas en V1
 
 Explicitement différé, et pourquoi :

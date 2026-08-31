@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "corsheaders",
     "django_filters",
-    # House apps
+    # Maisonnée apps
     "core",
     "accounts",
     "households",
@@ -254,6 +254,10 @@ REST_FRAMEWORK = {
         # Écrire les énigmes d'une chasse est un appel au modèle : on compose
         # une fois, on ajuste deux ou trois fois, on joue.
         "hunt_riddles": "20/hour",
+        # Un tour d'entretien de création de projet vaut un appel au modèle, et
+        # un entretien complet en vaut jusqu'à sept (six questions + le plan) :
+        # le cap se lit en chantiers, pas en requêtes.
+        "project_assistant": "60/hour",
     },
 }
 
@@ -304,8 +308,8 @@ DEMO_EMAIL = ""
 DEMO_PASSWORD = ""
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "House API",
-    "DESCRIPTION": "OpenAPI schema for House Django REST API.",
+    "TITLE": "Maisonnée API",
+    "DESCRIPTION": "OpenAPI schema for the Maisonnée Django REST API.",
     "VERSION": "1.0.0",
 }
 

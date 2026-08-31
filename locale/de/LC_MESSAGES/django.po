@@ -1,14 +1,14 @@
-# German translations for House Backend
+# German translations for Maisonnée Backend
 # Copyright (C) 2026
-# This file is distributed under the same license as the House package.
+# This file is distributed under the same license as the Maisonnée package.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: House Backend 1.0\n"
+"Project-Id-Version: Maisonnée Backend 1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-29 03:56+0000\n"
 "PO-Revision-Date: 2026-03-08 00:00+0000\n"
-"Last-Translator: House Team\n"
+"Last-Translator: Maisonnée Team\n"
 "Language-Team: German\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
@@ -141,36 +141,36 @@ msgstr "Passwort"
 #: apps/accounts/templates/accounts/emails/password_reset.html:5
 #: apps/accounts/templates/accounts/emails/password_reset.txt:1
 msgid "Hello,"
-msgstr ""
+msgstr "Hallo,"
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:6
 #: apps/accounts/templates/accounts/emails/password_reset.txt:3
 msgid "You requested a password reset for your Maisonnée account."
-msgstr ""
+msgstr "Sie haben das Zurücksetzen des Passworts für Ihr Maisonnée-Konto angefordert."
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:9
 msgid "Reset my password"
-msgstr ""
+msgstr "Mein Passwort zurücksetzen"
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:12
 msgid "Or copy and paste this URL into your browser:"
-msgstr ""
+msgstr "Oder kopieren Sie diese Adresse in Ihren Browser:"
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:15
 #: apps/accounts/templates/accounts/emails/password_reset.txt:9
 msgid ""
 "This link will expire in 3 days. If you did not request a password reset, "
 "you can safely ignore this email."
-msgstr ""
+msgstr "Dieser Link läuft in 3 Tagen ab. Wenn Sie kein Zurücksetzen angefordert haben, können Sie diese E-Mail ignorieren."
 
 #: apps/accounts/templates/accounts/emails/password_reset.html:16
 #: apps/accounts/templates/accounts/emails/password_reset.txt:11
 msgid "— Maisonnée"
-msgstr ""
+msgstr "— Maisonnée"
 
 #: apps/accounts/templates/accounts/emails/password_reset.txt:5
 msgid "Click the link below to set a new password:"
-msgstr ""
+msgstr "Klicken Sie auf den folgenden Link, um ein neues Passwort festzulegen:"
 
 #: apps/accounts/views/api.py:60
 msgid "Email and password are required."
@@ -194,29 +194,23 @@ msgstr "E-Mail ist erforderlich."
 
 #: apps/accounts/views/api.py:120
 msgid "Reset your Maisonnée password"
-msgstr ""
+msgstr "Setzen Sie Ihr Maisonnée-Passwort zurück"
 
 #: apps/accounts/views/api.py:130
 msgid "If an account with that email exists, a reset link has been sent."
-msgstr ""
+msgstr "Wenn ein Konto mit dieser E-Mail-Adresse existiert, wurde ein Link zum Zurücksetzen gesendet."
 
 #: apps/accounts/views/api.py:151
-#, fuzzy
-#| msgid "Email and password are required."
 msgid "uid, token and new_password are required."
-msgstr "E-Mail und Passwort sind erforderlich."
+msgstr "uid, token und new_password sind erforderlich."
 
 #: apps/accounts/views/api.py:160 apps/accounts/views/api.py:166
-#, fuzzy
-#| msgid "Invalid credentials."
 msgid "Invalid or expired reset link."
-msgstr "Ungültige Anmeldedaten."
+msgstr "Ungültiger oder abgelaufener Link zum Zurücksetzen."
 
 #: apps/accounts/views/api.py:182
-#, fuzzy
-#| msgid "Password updated successfully."
 msgid "Password has been reset successfully."
-msgstr "Passwort erfolgreich aktualisiert."
+msgstr "Passwort erfolgreich zurückgesetzt."
 
 #: apps/accounts/views/api.py:247
 msgid "new_password and confirm_password are required."
@@ -2042,11 +2036,10 @@ msgstr "Rückgängig gemacht."
 
 #: apps/telegram/service.py:406
 msgid ""
-"This Telegram account is not linked to House yet. Open the app settings and "
-"tap “Connect Telegram”."
-msgstr ""
-"Dieses Telegram-Konto ist noch nicht mit House verknüpft. Öffne die App-"
-"Einstellungen und tippe auf „Telegram verbinden“."
+"This Telegram account is not linked to Maisonnée yet. Open the app settings "
+"and tap “Connect Telegram”."
+msgstr "Dieses Telegram-Konto ist noch nicht mit Maisonnée verknüpft. Öffne die "
+"App-Einstellungen und tippe auf „Telegram verbinden“."
 
 #: apps/telegram/service.py:414
 msgid ""

@@ -236,7 +236,7 @@ export default function ZonesPage() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t('zones.searchPlaceholder')}
                   aria-label={t('zones.searchPlaceholder')}
-                  className="h-9 pl-9 pr-9 text-sm"
+                  className="h-9 pl-9 pr-9 md:text-sm"
                 />
                 {isSearching ? (
                   <button

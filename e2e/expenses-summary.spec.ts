@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 /**
  * Parcours 08 — Lot 1.0 : vue dépense agrégée + endpoint summary.
  *
- * Issue: https://github.com/jammindev/house/issues/122
+ * Issue: https://github.com/jammindev/maisonnee/issues/122
  *
  * Le test crée une dépense via le parcours stock (déjà rodé) puis vérifie
  * que l'onglet Dépenses du module Argent affiche le total + le breakdown.

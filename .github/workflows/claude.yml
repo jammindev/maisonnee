@@ -23,7 +23,7 @@ jobs:
     # volontairement exclu : un contributeur d'un jour garderait la clé pour
     # toujours.
     if: |
-      (github.repository == 'jammindev/house') &&
+      (github.repository == 'jammindev/maisonnee') &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association) &&
       (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||

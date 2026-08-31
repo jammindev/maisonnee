@@ -15,12 +15,13 @@ const state = vi.hoisted(() => ({
 }));
 
 const markAllRead = vi.hoisted(() => vi.fn());
+const markRead = vi.hoisted(() => vi.fn());
 
 vi.mock('./hooks', () => ({
   useNotifications: () => ({ data: state.notifications }),
   useUnreadCount: () => ({ data: state.unread }),
   useMarkAllRead: () => ({ mutate: markAllRead, isPending: false }),
-  useMarkRead: () => ({ mutate: vi.fn() }),
+  useMarkRead: () => ({ mutate: markRead }),
 }));
 
 vi.mock('@/features/alerts/hooks', () => ({
@@ -68,11 +69,31 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
 });
 
+/** Le serveur sert la liste en `-created_at` : le premier élément est le plus récent. */
+function notification(
+  id: string,
+  title: string,
+  { read = false, url = '' }: { read?: boolean; url?: string } = {},
+) {
+  return {
+    id,
+    type: 'stock_low',
+    title,
+    body: '',
+    payload: {},
+    url,
+    is_read: read,
+    read_at: read ? '2026-08-13T10:00:00Z' : null,
+    created_at: '2026-08-13T09:00:00Z',
+  };
+}
+
 beforeEach(() => {
   state.notifications = [];
   state.unread = 0;
   state.alerts = null;
   markAllRead.mockClear();
+  markRead.mockClear();
 });
 
 async function openBell() {
@@ -161,5 +182,107 @@ describe('NotificationsBell — les alertes du foyer', () => {
     await openBell();
 
     expect(screen.queryByText('notifications.markAllRead')).not.toBeInTheDocument();
+  });
+});
+
+describe("NotificationsBell — l'aperçu tient la promesse du badge", () => {
+  /**
+   * La régression : l'aperçu était un `slice` de la liste triée par date, donc
+   * l'état lu/non-lu n'entrait pas dans le choix des lignes affichées — alors
+   * qu'il fonde le badge. Cinq lues plus récentes suffisaient à rendre un
+   * non-lu introuvable dans la cloche pendant que le badge annonçait « 1 ».
+   */
+  it('montre le non-lu que cinq lues plus récentes chassaient de la troncature', async () => {
+    state.unread = 1;
+    state.notifications = [
+      notification('r1', 'Relevé importé', { read: true }),
+      notification('r2', 'Bob a rejoint le foyer', { read: true }),
+      notification('r3', 'Stock bas : farine', { read: true }),
+      notification('r4', 'Alerte météo', { read: true }),
+      notification('r5', 'Corvée du poulailler', { read: true }),
+      notification('u1', 'Tondre la pelouse est en retard'),
+    ];
+
+    await openBell();
+
+    expect(screen.getByText('Tondre la pelouse est en retard')).toBeInTheDocument();
+  });
+
+  /**
+   * Lire n'est pas supprimer : le modèle a `deleted_at` pour écarter, et c'est
+   * un geste explicite. Vider l'aperçu à la lecture ferait disparaître la ligne
+   * sous le curseur au moment même où on la clique.
+   */
+  it("garde les lues dans l'aperçu, derrière les non-lues", async () => {
+    state.unread = 1;
+    state.notifications = [
+      notification('r1', 'Relevé importé', { read: true }),
+      notification('u1', 'Tondre la pelouse est en retard'),
+    ];
+
+    await openBell();
+
+    const rows = screen.getAllByTestId('bell-notification-row').map((row) => row.textContent);
+    expect(rows[0]).toContain('Tondre la pelouse est en retard');
+    expect(rows[1]).toContain('Relevé importé');
+  });
+
+  /**
+   * Le même objet menait quelque part sur `/app/notifications` (`NotificationCard`
+   * ouvre `notification.url`) et nulle part dans la cloche, qui se contentait de
+   * marquer lu. Une notification qui annonce sans mener oblige le lecteur à
+   * refaire la recherche qu'elle venait de faire pour lui.
+   */
+  it('mène à ce qu\'elle annonce', async () => {
+    state.unread = 1;
+    state.notifications = [
+      notification('u1', 'Tondre la pelouse est en retard', { url: '/app/tasks/t1' }),
+    ];
+
+    await openBell();
+
+    expect(screen.getByRole('link', { name: /Tondre la pelouse/ })).toHaveAttribute(
+      'href',
+      '/app/tasks/t1',
+    );
+  });
+
+  it('marque lu en ouvrant, sans attendre un second geste', async () => {
+    state.unread = 1;
+    state.notifications = [
+      notification('u1', 'Tondre la pelouse est en retard', { url: '/app/tasks/t1' }),
+    ];
+
+    const user = await openBell();
+    await user.click(screen.getByRole('link', { name: /Tondre la pelouse/ }));
+
+    expect(markRead).toHaveBeenCalledWith('u1');
+  });
+
+  it("n'invente pas de lien quand la notification ne mène nulle part", async () => {
+    state.unread = 1;
+    state.notifications = [notification('u1', 'Stock bas : farine')];
+
+    await openBell();
+
+    expect(screen.queryByRole('link', { name: /farine/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Stock bas : farine')).toBeInTheDocument();
+  });
+
+  /** Une invitation porte ses propres boutons : l'envelopper dans un lien les avalerait. */
+  it("ne transforme pas une invitation en lien", async () => {
+    state.unread = 1;
+    state.notifications = [
+      {
+        ...notification('i1', 'Invitation au foyer', { url: '/app/settings' }),
+        type: 'household_invitation',
+        payload: { invitation_id: 'inv-1' },
+      },
+    ];
+
+    await openBell();
+
+    expect(screen.queryByRole('link', { name: /Invitation au foyer/ })).not.toBeInTheDocument();
+    expect(screen.getByText('invitations.accept')).toBeInTheDocument();
   });
 });

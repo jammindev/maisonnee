@@ -40,6 +40,15 @@ from django.utils.translation import trans_real
 #: — exactement le défaut qu'a vécu ``stock`` en production, et qui ne se voit
 #: dans aucune relecture.
 PROSE_MODULES = [
+    # L'e-mail de réinitialisation et les messages du parcours d'authentification.
+    # Ajouté après un défaut qui a vécu en production : le code appelait
+    # `_("Reset your House password")` alors que les catalogues portaient
+    # `msgid "Reset your Maisonnée password"` — le renommage avait touché les `.po`
+    # et pas la source. La recherche ne tombait donc sur **rien**, et l'e-mail
+    # partait en anglais, sous l'ancien nom du produit, dans les quatre langues.
+    # Un msgid qui dérive de sa source est pire qu'un `msgstr` vide : il n'y a même
+    # plus d'entrée à remplir, et le `.po` a l'air complet.
+    "apps/accounts/views/api.py",
     "apps/budget/report/render.py",
     "apps/budget/report/ping.py",
     "apps/recap/render.py",

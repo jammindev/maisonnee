@@ -51,7 +51,7 @@ from rest_framework.exceptions import APIException
 # Base publique de la documentation d'exploitation. Une instance auto-hébergée
 # n'embarque pas les sources : le lien pointe le dépôt, seul endroit où la page
 # est lisible sans avoir cloné.
-DOCS_BASE_URL = "https://github.com/jammindev/house/blob/main/docs/self-hosting"
+DOCS_BASE_URL = "https://github.com/jammindev/maisonnee/blob/main/docs/self-hosting"
 DOCS_PAGE = "ai-providers.md"
 
 

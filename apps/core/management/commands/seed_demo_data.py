@@ -81,16 +81,26 @@ from django.db import transaction
 from django.utils import timezone
 
 from chickens.models import Chicken, ChickenChore, ChickenEvent, ChickenSettings, EggLog
-from core.timezones import household_today
+from core.timezones import household_today, household_tz
 from directory.models import Address, Contact, Email, Phone, Structure
 from electricity.models import (
     CircuitUsagePointLink,
+    ConsumptionImport,
+    ConsumptionRecord,
     ElectricCircuit,
     ElectricityBoard,
+    ElectricityMeter,
+    EnergyRegister,
+    MeterReading,
+    MeterTariff,
+    MeterTariffType,
     ProtectiveDevice,
     UsagePoint,
 )
+from documents.models import Document, DocumentLink
 from equipment.models import Equipment, EquipmentInteraction
+from games.models import Hunt, HuntStep
+from orchard.models import CareRule, Harvest, Tree, TreeEvent
 from households.models import Household, HouseholdMember
 from insurance.models import InsuranceContract
 from banking.models import (
@@ -167,6 +177,7 @@ class Command(BaseCommand):
             projects = self._create_projects(household, claire, antoine, zones)
             self._create_tasks(household, claire, antoine, lea, zones, projects)
             self._create_electricity(household, claire, zones)
+            self._create_energy_history(household, claire, zones)
             self._create_money(household, claire, projects)
             equipment = self._create_equipment(household, antoine, zones)
             stock = self._create_stock(household, claire, zones)
@@ -177,6 +188,12 @@ class Command(BaseCommand):
             self._create_shopping(household, lea, stock)
             self._create_chickens(household, lea, zones, stock)
             self._create_water(household, claire)
+            self._create_orchard(household, antoine, zones)
+            self._create_games(household, lea, zones)
+            # Après les projets et les équipements : une photo se rattache à une
+            # entité qui existe, et le comparateur avant/après du chantier est ce
+            # que la page projet met le plus en avant.
+            self._create_photos(household, claire, zones, projects, equipment)
             self._create_insurance(household, claire)
             self._create_trackers(household, antoine)
             self._create_directory(household, claire)
@@ -197,6 +214,11 @@ class Command(BaseCommand):
         users = User.objects.filter(email__in=email_list)
         household_ids = list(Household.objects.filter(name="Famille Mercier").values_list("id", flat=True))
         if household_ids:
+            # Le compteur part avant le tableau : ses relevés, ses tarifs et la
+            # série dérivée cascadent depuis lui, et un import de fichier de
+            # consommation pointe dessus en SET_NULL.
+            ConsumptionImport.objects.filter(household_id__in=household_ids).delete()
+            ElectricityMeter.objects.filter(household_id__in=household_ids).delete()
             CircuitUsagePointLink.objects.filter(circuit__board__household_id__in=household_ids).delete()
             UsagePoint.objects.filter(household_id__in=household_ids).delete()
             ElectricCircuit.objects.filter(board__household_id__in=household_ids).delete()
@@ -213,6 +235,26 @@ class Command(BaseCommand):
             ChickenChore.objects.filter(household_id__in=household_ids).delete()
             EggLog.objects.filter(household_id__in=household_ids).delete()
             Chicken.objects.filter(household_id__in=household_ids).delete()
+            # Le verger : les récoltes et le carnet cascadent depuis le sujet, mais
+            # les règles de soin sont pointées en SET_NULL par le carnet — l'ordre
+            # n'a donc pas d'importance ici, contrairement au bloc bancaire.
+            Harvest.objects.filter(household_id__in=household_ids).delete()
+            TreeEvent.objects.filter(household_id__in=household_ids).delete()
+            CareRule.objects.filter(household_id__in=household_ids).delete()
+            # Les sujets pointent une zone en PROTECT : ils partent avant les zones,
+            # sinon le foyer devient indéracinable.
+            Tree.objects.filter(household_id__in=household_ids).delete()
+            # Idem pour les étapes de chasse, qui pointent une zone en PROTECT.
+            HuntStep.objects.filter(household_id__in=household_ids).delete()
+            Hunt.objects.filter(household_id__in=household_ids).delete()
+            # Les documents : la suppression en masse convient, et c'est du métier —
+            # ``documents.signals.delete_document_file`` est un ``post_delete``, que
+            # Django émet aussi pour un ``QuerySet.delete()``, et il efface le
+            # fichier stocké **et ses vignettes**. Sans lui, chaque remise à zéro
+            # nocturne laisserait douze orphelins de plus dans le répertoire d'état,
+            # que rien ne viendrait jamais réclamer.
+            DocumentLink.objects.filter(document__household_id__in=household_ids).delete()
+            Document.objects.filter(household_id__in=household_ids).delete()
             TrackerEntry.objects.filter(household_id__in=household_ids).delete()
             Tracker.objects.filter(household_id__in=household_ids).delete()
             WaterReading.objects.filter(household_id__in=household_ids).delete()
@@ -268,6 +310,15 @@ class Command(BaseCommand):
                 "postal_code": "69003",
                 "country": "FR",
                 "timezone": "Europe/Paris",
+                # Les coordonnées ne sont pas décoratives : sans elles le module
+                # Météo est muet, les tâches météo-conscientes ne se décalent
+                # jamais, aucune alerte ne tombe et l'overlay de la courbe de
+                # consommation n'a rien à superposer. Quatre écrans vides pour
+                # deux nombres absents — et la ville était déjà « Lyon », ce que
+                # les libellés du relevé disent depuis le début.
+                "latitude": 45.7640,
+                "longitude": 4.8357,
+                "location_label": "Lyon, Auvergne-Rhône-Alpes, France",
                 "context_notes": "Maison individuelle avec jardin, construite en 1978, rénovée partiellement en 2015.",
             },
         )
@@ -1003,6 +1054,606 @@ class Command(BaseCommand):
         )
 
     # ------------------------------------------------------------------
+    # Électricité — le compteur, ses tarifs, trois ans de relevés
+    # ------------------------------------------------------------------
+
+    def _create_energy_history(self, household, user, zones):
+        """Le compteur, ses trois tarifs et trente-huit relevés mensuels.
+
+        Sans ce bloc, la démonstration montrait un tableau électrique complet —
+        14 circuits, 34 points d'usage, jusqu'au différentiel du chauffe-eau — et
+        une page de consommation entièrement blanche : aucun compteur, aucun
+        tarif, aucun relevé, aucune courbe. Le visiteur en concluait que le
+        module ne sait rien faire, alors qu'il ne savait rien *encore*. C'est
+        pire qu'un module absent : un module désactivé ne promet rien, un module
+        vide promet et dément au premier clic.
+
+        **Les relevés passent par ``MeterReadingSerializer``**, comme le viewset
+        et l'agent : la monotonie de l'index, l'appartenance au foyer et la
+        cohérence registre/tarif sont vérifiées ici aussi. Seul
+        ``rebuild_reading_records`` est sorti de la boucle, et pas par commodité —
+        il est documenté « deterministic and idempotent : the whole series for
+        (meter, register) is deleted and rebuilt on every reading write ».
+        Appelé une fois après N insertions il produit donc **exactement** les
+        mêmes lignes qu'appelé N fois, pour un N-ième du travail : trente-huit
+        reconstructions d'une série de onze cents points, c'est quarante mille
+        écritures jetées pour rien à chaque remise à zéro nocturne.
+        """
+        from core.timezones import start_of_day
+        from electricity.serializers import MeterReadingSerializer
+        from electricity.services import rebuild_reading_records
+
+        period_start = self._period_start(household)
+        today = household_today(household)
+
+        meter, _created = ElectricityMeter.objects.get_or_create(
+            household=household,
+            name="Compteur Linky — garage",
+            defaults={
+                "created_by": user,
+                "updated_by": user,
+                "serial_number": "PDL 14027893051476",
+                "zone": zones["garage"],
+                "tariff_type": MeterTariffType.HP_HC,
+                # Le fuseau du compteur, pas celui du serveur : c'est lui qui
+                # découpe les jours et les mois de la courbe.
+                "timezone": getattr(household, "timezone", "") or "Europe/Paris",
+                "notes": "Heures creuses de 22 h 30 à 6 h 30 — le chauffe-eau est asservi.",
+            },
+        )
+
+        # Les trois tarifs, alignés sur les fenêtres d'ancienneté du relevé
+        # (``YEARLY_PROFILE``) : le prix du kWh change le mois où le salaire
+        # change, donc les deux histoires n'en font qu'une.
+        for age in (2, 1, 0):
+            factor = Decimal(self.YEARLY_PROFILE[age]["energy_factor"])
+            MeterTariff.objects.get_or_create(
+                household=household,
+                meter=meter,
+                valid_from=self._add_months(period_start, -12 * (age + 1)),
+                defaults={
+                    "created_by": user,
+                    "updated_by": user,
+                    "price_hp": (Decimal(self.PRICE_HP_YEAR0) * factor).quantize(Decimal("0.00001")),
+                    "price_hc": (Decimal(self.PRICE_HC_YEAR0) * factor).quantize(Decimal("0.00001")),
+                    "subscription_eur_month": (
+                        Decimal(self.SUBSCRIPTION_EUR_MONTH) * factor
+                    ).quantize(Decimal("0.01")),
+                },
+            )
+
+        if MeterReading.objects.filter(meter=meter).exists():
+            self.stdout.write("  Électricité : compteur déjà relevé, historique conservé")
+            return
+
+        # Le 1er de chaque mois, du plus ancien mois du relevé bancaire au mois
+        # courant : chaque intervalle est donc exactement un mois calendaire, et
+        # les barres de la courbe tombent sur les mois du budget.
+        months = [
+            self._add_months(period_start, -self.HISTORY_MONTHS + offset)
+            for offset in range(self.HISTORY_MONTHS + 2)
+        ]
+
+        hc_share = Decimal(self.HC_SHARE)
+        index = {
+            EnergyRegister.HP: Decimal(self.INDEX_HP_START),
+            EnergyRegister.HC: Decimal(self.INDEX_HC_START),
+        }
+
+        def write(day: date) -> None:
+            for register in (EnergyRegister.HP, EnergyRegister.HC):
+                serializer = MeterReadingSerializer(
+                    data={
+                        "meter": meter.pk,
+                        "register": register,
+                        "reading_at": start_of_day(day, household),
+                        "index_kwh": index[register].quantize(Decimal("0.001")),
+                    },
+                    context={"household_id": household.id},
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save(household=household, created_by=user, updated_by=user)
+
+        for month_start in months:
+            write(month_start)
+            # L'index du relevé suivant porte la consommation du mois qui commence.
+            kwh = self._monthly_kwh(month_start.month)
+            index[EnergyRegister.HC] += kwh * hc_share
+            index[EnergyRegister.HP] += kwh * (Decimal("1") - hc_share)
+
+        # Le mois courant au prorata des jours écoulés : sans ce dernier relevé la
+        # courbe s'arrête au 1er et l'écran le plus regardé — le mois en cours —
+        # est vide le jour de la visite.
+        if today.day > 1:
+            current = months[-1]
+            days_in_month = (self._add_months(current, 1) - current).days
+            elapsed = Decimal(today.day - 1) / Decimal(days_in_month)
+            kwh = self._monthly_kwh(current.month)
+            index[EnergyRegister.HC] = (
+                index[EnergyRegister.HC] - kwh * hc_share + kwh * hc_share * elapsed
+            )
+            index[EnergyRegister.HP] = (
+                index[EnergyRegister.HP]
+                - kwh * (Decimal("1") - hc_share)
+                + kwh * (Decimal("1") - hc_share) * elapsed
+            )
+            write(today)
+
+        records = sum(
+            rebuild_reading_records(meter, register)
+            for register in (EnergyRegister.HP, EnergyRegister.HC)
+        )
+        self._assert_energy_matches_the_statement(household, meter)
+
+        self.stdout.write(
+            f"  Électricité : {MeterReading.objects.filter(meter=meter).count()} relevés "
+            f"sur {len(months) - 1} mois, {records} points de consommation, "
+            f"{MeterTariff.objects.filter(meter=meter).count()} tarifs"
+        )
+
+    def _assert_energy_matches_the_statement(self, household, meter) -> None:
+        """La courbe et le relevé disent le même euro, ou la seed refuse de finir.
+
+        Douze mois pleins, comparés à la part **énergie** des prélèvements du relevé
+        sur la même période. L'identité est exacte à l'arrondi près : le coût rendu
+        vaut ``Σ kWh(m) × prix mélangé``, et les kWh étant *dérivés* de la facture,
+        les deux membres se réduisent à ``Σ (ENERGY_BY_MONTH[m] − abonnement) × f``.
+
+        Une divergence ne peut venir que d'une chose : une **deuxième définition**
+        entrée dans le fichier — un tableau de kWh écrit à la main, un ``HC_SHARE``
+        changé d'un seul côté, un tarif retouché. Mieux vaut une seed qui refuse de
+        finir qu'une vitrine où l'onglet Électricité et le relevé annoncent deux
+        montants pour le même mois : le visiteur ne peut pas savoir lequel croire,
+        et il a raison de ne croire ni l'un ni l'autre.
+
+        ⚠️ **Le contrôle porte sur ``energy_cost_eur``, jamais sur
+        ``total_cost_eur``.** L'abonnement est borné au jour réel par
+        ``_subscription_cost_eur``, qui lit ``datetime.now(tz)`` et **non**
+        ``django.utils.timezone.now`` : l'horloge gelée des tests
+        ``…AnyDayOfTheMonth`` ne l'atteint donc pas, et à une date figée dans le
+        futur l'abonnement s'arrêtait au vrai jour — 73 jours manquants, soit
+        40,10 € d'écart sur un contrôle par ailleurs juste. L'abonnement est de
+        toute façon une constante posée ici ; ce que la dérivation des kWh doit
+        garantir, c'est la part énergie, et elle seule.
+        """
+        from electricity.services import consumption_summary
+
+        period_start = self._period_start(household)
+        date_from = self._add_months(period_start, -12)
+        date_to = period_start - timedelta(days=1)
+
+        summary = consumption_summary(
+            household, meter, granularity="month", date_from=date_from, date_to=date_to
+        )
+        observed = summary["energy_cost_eur"]
+        if observed is None:
+            raise CommandError(
+                "Électricité : aucun coût d'énergie calculé sur les douze derniers "
+                "mois. Un tarif manque, ou ses prix ne correspondent pas au type de "
+                "compteur (HP/HC attend price_hp et price_hc)."
+            )
+
+        factor = Decimal(self.YEARLY_PROFILE[0]["energy_factor"])
+        subscription = Decimal(self.SUBSCRIPTION_EUR_MONTH)
+        expected = sum(
+            (
+                (Decimal(self.ENERGY_BY_MONTH[month]) - subscription) * factor
+                for month in range(1, 13)
+            ),
+            Decimal("0"),
+        )
+        drift = abs(Decimal(str(observed)) - expected)
+        if drift > expected * Decimal("0.01"):
+            raise CommandError(
+                f"Électricité : la courbe annonce {observed} € d'énergie sur douze mois "
+                f"là où le relevé en prélève {expected} € (écart {drift} €). Les kWh "
+                "doivent rester dérivés d'ENERGY_BY_MONTH via _monthly_kwh — voir sa "
+                "docstring."
+            )
+
+    # ------------------------------------------------------------------
+    # Verger — trois saisons de récoltes, et des gestes en retard
+    # ------------------------------------------------------------------
+
+    #: Les six sujets du verger : ``(nom, espèce, genre, mois de plantation,
+    #: floraison, statut)``. Un figuier souffrant parce qu'un verger réel n'est pas
+    #: une collection d'arbres en pleine forme, et que le statut ``ailing`` est
+    #: précisément ce que l'écran sait montrer.
+    ORCHARD_SUBJECTS = (
+        ("Pommier Reine des Reinettes", "Malus domestica", "fruit_tree", (2016, 11), (4, 5), "alive"),
+        ("Poirier Conférence", "Pyrus communis", "fruit_tree", (2016, 11), (4, 4), "alive"),
+        ("Cerisier Burlat", "Prunus avium", "fruit_tree", (2012, 3), (3, 4), "alive"),
+        ("Figuier Sultane", "Ficus carica", "fruit_tree", (2019, 4), (5, 6), "ailing"),
+        ("Framboisier Héritage", "Rubus idaeus", "berry_bush", (2021, 3), (5, 6), "alive"),
+        ("Vigne Chasselas", "Vitis vinifera", "vine", (2018, 4), (6, 6), "alive"),
+    )
+
+    #: Ce que chaque sujet donne : ``nom -> (mois, unité, (rendement par saison…))``.
+    #: Les trois rendements sont ceux des trois dernières saisons, de la plus
+    #: ancienne à la plus récente — une saison faible, une bonne, une moyenne. Un
+    #: verger dont chaque arbre donne la même chose chaque année ne se compare pas,
+    #: et comparer les saisons est **toute** la raison d'être de l'écran.
+    ORCHARD_YIELDS = {
+        "Pommier Reine des Reinettes": ((9, 10), "kg", ("18.400", "31.200", "24.700")),
+        "Poirier Conférence": ((9,), "kg", ("9.600", "14.300", "11.800")),
+        "Cerisier Burlat": ((6,), "kg", ("22.500", "6.800", "19.400")),
+        "Figuier Sultane": ((8, 9), "kg", ("4.200", "5.100", "2.300")),
+        "Framboisier Héritage": ((7, 8, 9), "kg", ("2.800", "3.600", "3.100")),
+        "Vigne Chasselas": ((9,), "kg", ("11.200", "8.700", "13.500")),
+    }
+
+    def _create_orchard(self, household, user, zones):
+        """Six sujets, quatre règles de soin saisonnières, trois saisons de récoltes.
+
+        Le module Verger est en production depuis le 15 août 2026 et la seed ne le
+        connaissait pas : le visiteur ouvrait « Verger » sur une page vide. Un
+        module vide est pire qu'un module absent — celui qui est absent ne promet
+        rien.
+
+        Deux choses valent d'être semées et pas seulement les arbres :
+
+        - **trois saisons de récoltes**, parce que l'écran agrège *par saison* et
+          qu'une seule saison ne se compare à rien ;
+        - **une règle de soin en retard**, parce que ``orchard.seasons.rule_status``
+          dérive son échéance du dernier événement lié : sans un geste manquant, la
+          fenêtre saisonnière — la mécanique propre du module — ne se voit pas.
+
+        Les récoltes futures ne sont **pas** semées : les pommes de septembre
+        n'existent pas encore un 19 août. Une seed relative au jour ne fabrique
+        jamais un passé qui n'a pas eu lieu.
+        """
+        today = household_today(household)
+        jardin = zones["jardin"]
+
+        trees = {}
+        for name, species, kind, (py, pm), (fs, fe), status in self.ORCHARD_SUBJECTS:
+            tree, _created = Tree.objects.get_or_create(
+                household=household,
+                name=name,
+                defaults={
+                    "created_by": user,
+                    "updated_by": user,
+                    "kind": kind,
+                    "species": species,
+                    "planted_on": date(py, pm, 15),
+                    "flowering_start_month": fs,
+                    "flowering_end_month": fe,
+                    "status": status,
+                    "zone": jardin,
+                    "notes": (
+                        "Feuilles jaunies côté nord depuis le printemps — à surveiller."
+                        if status == "ailing"
+                        else ""
+                    ),
+                },
+            )
+            trees[name] = tree
+
+        harvests = 0
+        for name, (months, unit, yields) in self.ORCHARD_YIELDS.items():
+            tree = trees[name]
+            for season_offset, quantity in enumerate(yields):
+                year = today.year - (len(yields) - 1 - season_offset)
+                for position, month in enumerate(months):
+                    day = 8 + position * 9
+                    harvested_on = date(year, month, day)
+                    if harvested_on > today:
+                        continue  # une récolte à venir n'est pas une récolte
+                    share = Decimal(quantity) / Decimal(len(months))
+                    _obj, created = Harvest.objects.get_or_create(
+                        household=household,
+                        tree=tree,
+                        harvested_on=harvested_on,
+                        defaults={
+                            "created_by": user,
+                            "updated_by": user,
+                            "quantity": share.quantize(Decimal("0.001")),
+                            "unit": unit,
+                        },
+                    )
+                    harvests += 1 if created else 0
+
+        # Les règles : deux par **genre** (elles couvrent tous les fruitiers d'un
+        # coup, ce que le champ ``kind`` existe pour faire), deux par sujet.
+        rules = {}
+        for key, name, emoji, start, end, event_type, kind, tree_name in (
+            ("taille_hiver", "Taille d'hiver", "✂️", 11, 3, "pruning", "fruit_tree", None),
+            ("bouillie", "Bouillie bordelaise", "🧪", 2, 3, "treatment", "fruit_tree", None),
+            ("rabattage", "Rabattage des cannes", "🌿", 11, 2, "pruning", "berry_bush", None),
+            ("taille_vigne", "Taille de la vigne", "🍇", 12, 2, "pruning", "", "Vigne Chasselas"),
+        ):
+            rule, _created = CareRule.objects.get_or_create(
+                household=household,
+                name=name,
+                defaults={
+                    "created_by": user,
+                    "updated_by": user,
+                    "emoji": emoji,
+                    "start_month": start,
+                    "end_month": end,
+                    "event_type": event_type,
+                    "kind": kind,
+                    "tree": trees[tree_name] if tree_name else None,
+                },
+            )
+            rules[key] = rule
+
+        # Le carnet. La taille d'hiver et la vigne ont été faites l'hiver dernier ;
+        # **la bouillie bordelaise ne l'a jamais été** — c'est le geste en retard
+        # que l'écran doit signaler, et sans lui la fenêtre saisonnière est une
+        # mécanique invisible.
+        last_winter = today.year if today.month >= 4 else today.year - 1
+        events = 0
+        for tree_name, rule_key, event_type, occurred_on, title, notes in (
+            ("Pommier Reine des Reinettes", "taille_hiver", "pruning",
+             date(last_winter, 2, 14), "Taille d'hiver", "Charpentières éclaircies, bois mort retiré."),
+            ("Poirier Conférence", "taille_hiver", "pruning",
+             date(last_winter, 2, 14), "Taille d'hiver", ""),
+            ("Cerisier Burlat", "taille_hiver", "pruning",
+             date(last_winter, 3, 2), "Taille douce après floraison", "Le cerisier n'aime pas la taille sévère."),
+            ("Vigne Chasselas", "taille_vigne", "pruning",
+             date(last_winter, 1, 18), "Taille en guyot simple", ""),
+            ("Framboisier Héritage", "rabattage", "pruning",
+             date(last_winter, 1, 25), "Rabattage des cannes de deuxième année", ""),
+            ("Figuier Sultane", None, "observation",
+             date(last_winter, 6, 9), "Feuilles jaunies côté nord",
+             "Chlorose probable — arrosage revu et paillage posé."),
+            ("Pommier Reine des Reinettes", None, "flowering",
+             date(last_winter, 4, 11), "Pleine floraison", "Deux ruches de passage cette semaine."),
+        ):
+            _obj, created = TreeEvent.objects.get_or_create(
+                household=household,
+                tree=trees[tree_name],
+                occurred_on=occurred_on,
+                title=title,
+                defaults={
+                    "created_by": user,
+                    "updated_by": user,
+                    "care_rule": rules[rule_key] if rule_key else None,
+                    "type": event_type,
+                    "notes": notes,
+                },
+            )
+            events += 1 if created else 0
+
+        self.stdout.write(
+            f"  Verger : {len(trees)} sujets, {harvests} récoltes sur 3 saisons, "
+            f"{events} entrées de carnet, {len(rules)} règles de soin"
+        )
+
+    # ------------------------------------------------------------------
+    # Chasse au trésor — une jouée, une prête à lancer
+    # ------------------------------------------------------------------
+
+    def _create_games(self, household, user, zones):
+        """Deux chasses : une terminée, une prête à démarrer.
+
+        La contrainte ``games_one_active_hunt_per_household`` interdit deux chasses
+        actives ; c'est donc « terminée + brouillon », et c'est aussi le bon couple
+        pour la démonstration — l'une montre ce que ça donne, l'autre se lance en un
+        clic sans rien préparer.
+
+        Les énigmes sont écrites à la main. L'assistant sait les proposer, mais une
+        seed qui appelle le modèle ne produit pas deux fois la même chose : un test
+        ne pourrait rien affirmer, et la démo changerait de contenu chaque nuit.
+        """
+        today = household_today(household)
+        played_on = today - timedelta(days=11)
+
+        played, created = Hunt.objects.get_or_create(
+            household=household,
+            name="L'anniversaire de Léa",
+            defaults={
+                "created_by": user,
+                "updated_by": user,
+                "status": Hunt.Status.DONE,
+                "treasure_text": "Deux places pour le concert de samedi, glissées dans la boîte à gâteaux.",
+                "started_at": timezone.make_aware(
+                    datetime.combine(played_on, datetime.min.time().replace(hour=15, minute=20)),
+                    household_tz(household),
+                ),
+                "finished_at": timezone.make_aware(
+                    datetime.combine(played_on, datetime.min.time().replace(hour=16, minute=4)),
+                    household_tz(household),
+                ),
+            },
+        )
+        if created:
+            for position, (zone_key, riddle, minutes) in enumerate((
+                ("cuisine", "Je chauffe sans brûler, je tourne sans avancer. Regarde là où le pain devient doré.", 9),
+                ("salon", "Quatre pieds, jamais un pas. On s'assoit dessus pour regarder ailleurs.", 17),
+                ("chambre_ado", "Tu y dors, tu y ronchonnes. Cherche sous ce qui te sert d'oreiller.", 31),
+                ("garage", "Ni chaud ni doux, mais c'est ici qu'on range ce qui roule.", 44),
+            ), start=1):
+                HuntStep.objects.create(
+                    household=household,
+                    created_by=user,
+                    updated_by=user,
+                    hunt=played,
+                    position=position,
+                    zone=zones[zone_key],
+                    riddle=riddle,
+                    found_at=timezone.make_aware(
+                        datetime.combine(
+                            played_on,
+                            datetime.min.time().replace(hour=15, minute=20),
+                        ),
+                        household_tz(household),
+                    )
+                    + timedelta(minutes=minutes),
+                )
+
+        ready, created = Hunt.objects.get_or_create(
+            household=household,
+            name="Dimanche pluvieux",
+            defaults={
+                "created_by": user,
+                "updated_by": user,
+                "status": Hunt.Status.DRAFT,
+                "treasure_text": "Le choix du film de ce soir, et personne ne discute.",
+            },
+        )
+        if created:
+            for position, (zone_key, riddle) in enumerate((
+                ("sdb", "Je te renvoie ton visage sans jamais te juger."),
+                ("bureau", "Des lettres partout, et pourtant je ne parle pas."),
+                ("cave", "Il fait frais chez moi, et j'attends patiemment l'hiver."),
+            ), start=1):
+                HuntStep.objects.create(
+                    household=household,
+                    created_by=user,
+                    updated_by=user,
+                    hunt=ready,
+                    position=position,
+                    zone=zones[zone_key],
+                    riddle=riddle,
+                )
+
+        self.stdout.write(
+            f"  Chasses au trésor : {Hunt.objects.filter(household=household).count()} "
+            f"({HuntStep.objects.filter(household=household).count()} étapes)"
+        )
+
+    # ------------------------------------------------------------------
+    # Photothèque — l'intention posée, et une file à trier
+    # ------------------------------------------------------------------
+
+    #: Les photos semées : ``(nom, intention, jours avant aujourd'hui, entité,
+    #: phase, zone)``. L'intention **vide** est délibérée sur trois d'entre elles —
+    #: c'est ce qui alimente la file « À trier », l'écran propre du module. Un
+    #: `purpose` posé partout afficherait « rien à trier » sur une photothèque
+    #: rangée, donc rien du tout.
+    PHOTO_PLAN = (
+        ("Salle de bain — avant travaux", "technical", 96, "project_sdb", "before", "sdb"),
+        ("Salle de bain — carrelage mural posé", "technical", 41, "project_sdb", "during", "sdb"),
+        ("Salle de bain — terminée", "memory", 12, "project_sdb", "after", "sdb"),
+        ("Fuite sous l'évier", "observation", 68, None, "", "cuisine"),
+        ("Plaque de la chaudière", "technical", 210, "equipment_chaudiere", "", "garage"),
+        ("Tableau électrique complet", "technical", 174, None, "", "garage"),
+        ("Fissure mur nord du garage", "observation", 53, None, "", "garage"),
+        ("Les poules au printemps", "memory", 88, None, "", "jardin"),
+        ("Terrasse — repas du 14 juillet", "memory", 36, None, "", "jardin"),
+        # Les trois non triées : prises le même après-midi, donc une seule grappe
+        # de session à trier — la file se vide en un geste, pas en trois.
+        ("Jardin côté sud", "", 4, None, "", "jardin"),
+        ("Massif à replanter", "", 4, None, "", "jardin"),
+        ("Le figuier de près", "", 4, None, "", "jardin"),
+    )
+
+    def _create_photos(self, household, user, zones, projects, equipment):
+        """Douze photos, avec leur intention — et trois sans, exprès.
+
+        La photothèque était vide, donc **deux** entrées de sidebar l'étaient
+        (Documents et Photos) et tout l'axe « intention » de
+        ``docs/MODULES/documents.md`` restait invisible : la file « À trier », les
+        grappes de session, le comparateur avant/après d'un chantier. Or ce
+        comparateur est ce que la page projet met en avant.
+
+        **Les images sont générées, pas commitées.** Un binaire dans le dépôt est
+        interdit sauf image de marque, et pour une bonne raison : celle-ci se
+        régénère en une commande. Ce sont des dégradés unis avec le nom écrit
+        dessus — assez pour qu'une vignette, une grille et un comparateur aient
+        quelque chose à afficher, et honnêtes sur ce qu'elles sont. Une fausse
+        photo de salle de bain serait une image trompeuse dans une vitrine
+        publique.
+
+        Le fichier passe par ``default_storage`` et ``Document.build_upload_path``,
+        comme la vue d'upload : la remise à zéro nocturne les efface donc avec les
+        lignes (signal ``post_delete``), au lieu d'entasser des orphelins dans le
+        répertoire d'état une nuit sur l'autre.
+        """
+        import io
+
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        from documents.services import link_document, set_document_zones
+
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:  # pragma: no cover - pillow est dans requirements/base
+            self.stdout.write("  Photothèque : Pillow absent, photos ignorées")
+            return
+
+        today = household_today(household)
+        # Les deux seeds amont renvoient des dictionnaires nommés, pas des listes :
+        # un accès par rang se tairait le jour où l'ordre change, et la photo
+        # atterrirait sur la mauvaise entité sans que rien ne le dise.
+        anchors = {
+            "project_sdb": projects["sdb"],
+            "equipment_chaudiere": equipment["chaudiere"],
+        }
+
+        #: Un dégradé par intention, pour qu'une grille de vignettes ne soit pas un
+        #: mur de la même couleur — c'est la lisibilité de l'écran qui est en jeu,
+        #: pas l'esthétique.
+        tints = {
+            "technical": ((58, 82, 112), (96, 132, 168)),
+            "observation": ((124, 84, 46), (176, 132, 84)),
+            "memory": ((66, 104, 74), (120, 158, 118)),
+            "": ((92, 92, 104), (148, 148, 160)),
+        }
+
+        created = 0
+        for name, purpose, days_ago, anchor_key, phase, zone_key in self.PHOTO_PLAN:
+            if Document.objects.filter(household=household, name=name).exists():
+                continue
+
+            start, end = tints[purpose]
+            image = Image.new("RGB", (960, 640))
+            draw = ImageDraw.Draw(image)
+            for y in range(640):
+                ratio = y / 639
+                draw.line(
+                    [(0, y), (960, y)],
+                    fill=tuple(
+                        int(start[c] + (end[c] - start[c]) * ratio) for c in range(3)
+                    ),
+                )
+            draw.text((40, 580), name, fill=(255, 255, 255))
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=72)
+            payload = buffer.getvalue()
+
+            filename = f"{name.lower().replace(' ', '-').replace('—', '')}.jpg"
+            path = default_storage.save(
+                Document.build_upload_path(household_id=household.id, filename=filename),
+                ContentFile(payload),
+            )
+
+            taken_at = timezone.make_aware(
+                datetime.combine(
+                    today - timedelta(days=days_ago),
+                    datetime.min.time().replace(hour=14, minute=20 + created % 30),
+                ),
+                household_tz(household),
+            )
+            document = Document.objects.create(
+                household=household,
+                created_by=user,
+                updated_by=user,
+                file_path=path,
+                name=name,
+                mime_type="image/jpeg",
+                type="photo",
+                purpose=purpose,
+                taken_at=taken_at,
+                metadata={"size": len(payload), "original_filename": filename,
+                          "dimensions": {"width": 960, "height": 640}},
+            )
+            set_document_zones(document=document, zones=[zones[zone_key]], user=user)
+
+            entity = anchors.get(anchor_key) if anchor_key else None
+            if entity is not None:
+                link_document(entity=entity, document=document, user=user,
+                              role="photo", phase=phase)
+            created += 1
+
+        untriaged = Document.objects.filter(household=household, purpose="").count()
+        self.stdout.write(
+            f"  Photothèque : {created} photos générées, {untriaged} à trier"
+        )
+
+    # ------------------------------------------------------------------
     # Argent — comptes, relevé importé, budgets, ventilations
     # ------------------------------------------------------------------
 
@@ -1042,7 +1693,7 @@ class Command(BaseCommand):
         # budgets a donc quelque chose à montrer quel que soit le jour du mois
         # où la démonstration est lancée.
         first_of_month = today.replace(day=1)
-        period_start = (first_of_month - timedelta(days=1)).replace(day=1)
+        period_start = self._period_start(household)
 
         def d(offset_days: int) -> date:
             return period_start + timedelta(days=offset_days)
@@ -1404,6 +2055,61 @@ class Command(BaseCommand):
         1: {"salary": "2330.00", "maif": "56.20", "savings": "350.00", "energy_factor": "0.94"},
         2: {"salary": "2260.00", "maif": "54.10", "savings": "300.00", "energy_factor": "0.88"},
     }
+
+    #: Abonnement mensuel TTC du compteur — 9 kVA, heures pleines / heures creuses.
+    SUBSCRIPTION_EUR_MONTH = "16.80"
+
+    #: Prix TTC du kWh sur les douze mois les plus récents, par registre. Les années
+    #: plus anciennes appliquent l'``energy_factor`` de ``YEARLY_PROFILE`` : en trois
+    #: ans c'est le **prix** qui a monté, pas la consommation. D'où une courbe de kWh
+    #: stable sous une facture qui grimpe — l'histoire vraie de ces trois années, et
+    #: la seule que la courbe et le relevé puissent raconter ensemble.
+    PRICE_HP_YEAR0 = "0.21460"
+    PRICE_HC_YEAR0 = "0.16960"
+
+    #: Part de la consommation en heures creuses. Le chauffe-eau du circuit 12 tourne
+    #: la nuit : c'est la raison d'être d'un compteur HP/HC, et la seed posait déjà ce
+    #: circuit sans jamais poser le compteur qui le justifie.
+    HC_SHARE = "0.40"
+
+    #: Index de départ des deux registres, au plus ancien relevé. Un compteur posé
+    #: en 2015 avec la maison n'affiche pas zéro.
+    INDEX_HP_START = "24560.000"
+    INDEX_HC_START = "18730.000"
+
+    def _blended_price(self) -> Decimal:
+        """Le prix moyen du kWh à l'année 0, pondéré par ``HC_SHARE``."""
+        hc = Decimal(self.HC_SHARE)
+        return (Decimal("1") - hc) * Decimal(self.PRICE_HP_YEAR0) + hc * Decimal(self.PRICE_HC_YEAR0)
+
+    def _monthly_kwh(self, month: int) -> Decimal:
+        """Les kWh d'un mois calendaire, **dérivés** de la facture d'``ENERGY_BY_MONTH``.
+
+        Jamais choisis à part. Un second tableau, en kWh, serait une deuxième
+        définition de l'énergie du foyer — et deux définitions dérivent : la courbe
+        de l'onglet Électricité contredirait le prélèvement du relevé juste à côté,
+        chacune juste selon sa propre source, et le visiteur ne saurait pas laquelle
+        croire. C'est « un compteur ne peut pas avoir deux définitions », et ici le
+        mot est littéral.
+
+        L'identité est **exacte**, pas approchée : le coût rendu par
+        ``consumption_summary`` vaut ``abonnement + kWh × prix mélangé``, soit
+        ``f × ENERGY_BY_MONTH[m]`` — le montant même du prélèvement. C'est ce que
+        ``_assert_energy_matches_the_statement`` vérifie à chaque seed.
+        """
+        energy_eur = Decimal(self.ENERGY_BY_MONTH[month]) - Decimal(self.SUBSCRIPTION_EUR_MONTH)
+        return (energy_eur / self._blended_price()).quantize(Decimal("0.001"))
+
+    def _period_start(self, household) -> date:
+        """Le 1er du mois précédent — **origine unique** de tout l'historique semé.
+
+        Le bloc Argent et le bloc Électricité génèrent chacun trois ans, et les
+        deux doivent tomber sur les mêmes mois : une facture d'énergie au relevé
+        sans le kWh correspondant dans la courbe, c'est le défaut que ce fichier
+        interdit partout ailleurs — deux définitions d'un même mois. D'où un seul
+        endroit qui décide où l'historique commence.
+        """
+        return (household_today(household).replace(day=1) - timedelta(days=1)).replace(day=1)
 
     @staticmethod
     def _add_months(anchor: date, months: int) -> date:

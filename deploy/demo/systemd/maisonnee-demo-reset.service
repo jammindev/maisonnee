@@ -12,7 +12,7 @@
 # les deux.
 [Unit]
 Description=Remise a zero de l instance de demonstration Maisonnee
-Documentation=https://github.com/jammindev/house/blob/main/DEPLOYMENT.md
+Documentation=https://github.com/jammindev/maisonnee/blob/main/DEPLOYMENT.md
 
 [Service]
 Type=oneshot

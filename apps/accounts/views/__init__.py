@@ -2,6 +2,7 @@
 from .api import (
     AuthViewSet,
     TokenObtainPairWithSessionView,
+    TokenRefreshWithSessionView,
     UserViewSet,
     me_view,
     signup_availability_view,
@@ -14,6 +15,7 @@ __all__ = [
     'DeviceTokenViewSet',
     'SetupView',
     'TokenObtainPairWithSessionView',
+    'TokenRefreshWithSessionView',
     'UserViewSet',
     'me_view',
     'signup_availability_view',

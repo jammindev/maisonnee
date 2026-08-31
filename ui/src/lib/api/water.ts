@@ -3,8 +3,21 @@ import type { Granularity } from '@/lib/period';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-// Water granularities — readings are date-only, so no hourly view.
-export type WaterGranularity = Exclude<Granularity, 'hour'>;
+/**
+ * Granularités de l'eau : le mois et l'année, rien de plus fin.
+ *
+ * Les relevés sont manuels, date-only et espacés. L'heure avait été écartée dès
+ * la création du module pour cette raison ; le jour part pour la même (#682) —
+ * un foyer qui relève une fois par mois voyait trente barres identiques, soit
+ * trente observations dessinées pour une seule mesure. Le mois est le plus petit
+ * bucket que ces données portent, et c'est aussi celui de la facture.
+ *
+ * Le type a été unifié en #683, quand la carte du tableau de bord — dernier
+ * appelant à demander `day` — a cessé de le faire. Le serveur accepte encore
+ * cette valeur ; le front ne l'envoie plus, et le type l'interdit pour que
+ * personne ne la réintroduise sans y penser.
+ */
+export type WaterGranularity = Extract<Granularity, 'month' | 'year'>;
 
 export interface WaterReading {
   id: string;

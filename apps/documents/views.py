@@ -4,7 +4,7 @@ from pathlib import Path
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
-from django.db import models as db_models, transaction
+from django.db import transaction
 from django.db.models import Prefetch
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -18,6 +18,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from core.permissions import IsHouseholdMember
 from core.file_validation import validate_upload, ALLOWED_DOCUMENT_TYPES, DOCUMENT_MAX_SIZE
+from core.visibility import narrow_for
 from .extraction import extract_text
 from .exif import read_taken_at
 from .image_processing import normalize_image
@@ -75,10 +76,14 @@ _PARAMS_RESERVED_BY_ANOTHER_FILTER = frozenset({'interaction'})
 
 def get_documents_queryset_for_request(request):
     query_params = getattr(request, 'query_params', request.GET)
-    queryset = Document.objects.filter(
-        household_id__in=request.user.householdmember_set.values_list('household_id', flat=True)
-    ).filter(
-        db_models.Q(is_private=False) | db_models.Q(created_by=request.user)
+    # La restriction passe par le point d'application unique, jamais par un ``Q``
+    # réécrit ici : la liste, la permission objet et le retrieval de l'agent ne
+    # peuvent pas donner trois réponses s'ils lisent la même déclaration.
+    queryset = narrow_for(
+        Document.objects.filter(
+            household_id__in=request.user.householdmember_set.values_list('household_id', flat=True)
+        ),
+        request.user,
     ).select_related(
         'created_by',
         'interaction',

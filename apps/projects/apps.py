@@ -41,3 +41,27 @@ class ProjectsConfig(AppConfig):
             url_template='/app/projects/{id}',
             related=_project_related,
         ))
+
+        # Capacité optionnelle (parcours 32, lot 1) — la création assistée d'un
+        # chantier. L'app qui possède l'écran possède sa déclaration :
+        # `app_settings` ne connaît pas la liste.
+        #
+        # La **clé** est distincte d'`assistant` bien que la condition soit la
+        # même, et il faut résister à l'envie de les fondre : « l'assistant ne
+        # peut pas répondre » et « les projets se créent au formulaire » ne
+        # disent pas la même chose à qui lit l'écran, et c'est exactement le
+        # malentendu que le registre existe pour supprimer. Elles ne se couperont
+        # pas ensemble non plus le jour où le module `agent` se désactive par
+        # foyer — un entretien n'est pas une conversation.
+        #
+        # Le **prédicat**, lui, est importé et non recopié : « un modèle peut-il
+        # répondre sur cette instance » n'a qu'une définition.
+        from agent.capabilities import assistant_available
+        from app_settings.capabilities import CapabilitySpec, register as register_capability
+
+        register_capability(CapabilitySpec(
+            key="project_assistant",
+            available=assistant_available,
+            doc_anchor="assistant-anthropic",
+            env_vars=("ANTHROPIC_API_KEY",),
+        ))

@@ -246,7 +246,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/capabilities
   "capabilities": [
     {"key": "assistant", "available": false,
      "env_vars": ["ANTHROPIC_API_KEY"],
-     "docs_url": "https://github.com/jammindev/house/blob/main/docs/self-hosting/ai-providers.md#assistant-anthropic"}
+     "docs_url": "https://github.com/jammindev/maisonnee/blob/main/docs/self-hosting/ai-providers.md#assistant-anthropic"}
   ]
 }
 ```

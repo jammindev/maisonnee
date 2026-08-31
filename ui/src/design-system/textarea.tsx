@@ -11,7 +11,7 @@ const Textarea = React.forwardRef<
     <textarea
       className={cn(
         fieldBase,
-        "min-h-[80px] text-base placeholder:text-muted-foreground",
+        "min-h-[80px] placeholder:text-muted-foreground",
         className
       )}
       ref={ref}

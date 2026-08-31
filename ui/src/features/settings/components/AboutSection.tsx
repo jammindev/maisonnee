@@ -2,7 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SettingsSection } from './SettingsSection';
 
-const REPOSITORY_URL = 'https://github.com/jammindev/house';
+const REPOSITORY_URL = 'https://github.com/jammindev/maisonnee';
 const LICENSE_URL = `${REPOSITORY_URL}/blob/main/LICENSE`;
 
 /**

@@ -9,7 +9,7 @@ stranger read my bank statements". Reports are taken seriously and answered.
 **Please do not open a public issue.**
 
 Use GitHub's private reporting form:
-**[Security → Report a vulnerability](https://github.com/jammindev/house/security/advisories/new)**
+**[Security → Report a vulnerability](https://github.com/jammindev/maisonnee/security/advisories/new)**
 
 It is enabled on this repository. The report stays private between you and the
 maintainer until a fix is published.

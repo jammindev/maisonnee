@@ -106,7 +106,7 @@ export default function LoginPage() {
           <p className="text-muted-foreground">{t('auth.demo.install')}</p>
           <pre className="overflow-x-auto rounded-md bg-background/70 p-2 text-xs text-foreground">
             <code>
-              curl -O https://raw.githubusercontent.com/jammindev/house/main/docker-compose.yml{'\n'}
+              curl -O https://raw.githubusercontent.com/jammindev/maisonnee/main/docker-compose.yml{'\n'}
               docker compose up -d
             </code>
           </pre>

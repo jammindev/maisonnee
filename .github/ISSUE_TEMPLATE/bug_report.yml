@@ -8,8 +8,8 @@ body:
         Thanks for taking the time. Answers in **English or French** are both fine.
 
         ⚠️ **Found a security vulnerability?** Do not report it here — use
-        [Security → Report a vulnerability](https://github.com/jammindev/house/security/advisories/new).
-        See [SECURITY.md](https://github.com/jammindev/house/blob/main/SECURITY.md).
+        [Security → Report a vulnerability](https://github.com/jammindev/maisonnee/security/advisories/new).
+        See [SECURITY.md](https://github.com/jammindev/maisonnee/blob/main/SECURITY.md).
 
   - type: textarea
     id: what-happened
