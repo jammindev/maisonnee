@@ -104,6 +104,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "project_group",
             "project_group_name",
             "type",
+            "default_budget",
             "is_pinned",
             "zones",
             "zone_ids",
@@ -205,6 +206,31 @@ class ProjectZoneSerializer(serializers.ModelSerializer):
 
 
 
+class PlanBudgetSerializer(serializers.Serializer):
+    """L'enveloppe du chantier, telle que l'écran l'a proposée puis relue.
+
+    Deux modes, et pas un troisième : soit une enveloppe **qui existe** (par son
+    id, résolu au tour d'entretien), soit une **à créer** (par son nom). Le
+    « aucune » se dit en envoyant `null` sur le champ, pas par un mode de plus —
+    un mode « none » porteur d'un nom vide finirait par exister quelque part.
+    """
+
+    mode = serializers.ChoiceField(choices=["existing", "new"])
+    id = serializers.UUIDField(required=False, allow_null=True)
+    name = serializers.CharField(max_length=120, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["mode"] == "existing" and not attrs.get("id"):
+            raise serializers.ValidationError(
+                {"id": "An existing envelope needs its id."}
+            )
+        if attrs["mode"] == "new" and not (attrs.get("name") or "").strip():
+            raise serializers.ValidationError(
+                {"name": "A new envelope needs a name."}
+            )
+        return attrs
+
+
 class PlanTaskSerializer(serializers.Serializer):
     """Une tâche du plan, telle que l'utilisateur l'a relue et corrigée.
 
@@ -272,6 +298,7 @@ class PlanProjectSerializer(serializers.Serializer):
     zone_ids = serializers.ListField(
         child=serializers.UUIDField(), required=False, default=list, max_length=10
     )
+    budget = PlanBudgetSerializer(required=False, allow_null=True)
 
     def validate(self, attrs):
         """Deux dates incohérentes se refusent ici, pas dans Postgres.

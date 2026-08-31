@@ -25,6 +25,7 @@ const PLAN: AssistantPlan = {
     tags: ['extérieur'],
     zone_ids: ['zone-jardin'],
     unresolved_zone_names: [],
+    budget: { mode: 'new', name: 'Terrasse' },
   },
   tasks: [
     {
@@ -128,6 +129,23 @@ describe('le corps envoyé à la création', () => {
     draft.project.title = '   ';
 
     expect(toPayload(draft).project.title).toBe('');
+  });
+
+  it('emporte l’enveloppe telle que la relecture l’a laissée', () => {
+    // `toPayload` étale `draft.project` : si un jour il énumérait les champs à la
+    // main, l'enveloppe tomberait en silence et le chantier naîtrait sans axe de
+    // classement — l'écart `expense_without_budget` fabriqué par l'app elle-même.
+    expect(toPayload(toDraft(PLAN)).project.budget).toEqual({
+      mode: 'new',
+      name: 'Terrasse',
+    });
+  });
+
+  it('accepte qu’il n’y ait aucune enveloppe', () => {
+    const draft = toDraft(PLAN);
+    draft.project.budget = null;
+
+    expect(toPayload(draft).project.budget).toBeNull();
   });
 
   it('conserve les zones résolues telles quelles', () => {

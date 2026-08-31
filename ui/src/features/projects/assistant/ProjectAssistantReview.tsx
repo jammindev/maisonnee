@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/design-system/button';
@@ -8,7 +9,9 @@ import { DecimalInput } from '@/design-system/decimal-input';
 import { FormField } from '@/design-system/form-field';
 import { CheckboxField } from '@/design-system/checkbox-field';
 import ZonePicker from '@/features/zones/ZonePicker';
-import type { ProjectType } from '@/lib/api/projects';
+import { useBudgets } from '@/features/budget/hooks';
+import { selectableBudgets } from '@/features/budget/tree';
+import type { PlanBudget, ProjectType } from '@/lib/api/projects';
 import { type Draft, type DraftItem, keptCount, unresolvedRooms } from './plan';
 
 /**
@@ -151,6 +154,11 @@ export default function ProjectAssistantReview({
         </FormField>
       </div>
 
+      <BudgetRow
+        value={draft.project.budget}
+        onChange={(budget) => patchProject({ budget })}
+      />
+
       <FormField label={t('projects.form.fields.zones')} htmlFor="review-zones">
         <ZonePicker
           id="review-zones"
@@ -188,6 +196,71 @@ export default function ProjectAssistantReview({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * L'enveloppe du chantier — proposée, jamais imposée.
+ *
+ * Trois choix dans un seul contrôle : une enveloppe existante, la nouvelle que
+ * l'assistant a proposée, ou aucune. « Aucune » est un choix légitime et pas un
+ * oubli : le détecteur `expense_without_budget` posera la question au premier
+ * euro, ce qui est le bon moment.
+ *
+ * Le nom proposé pour une enveloppe neuve est mémorisé à l'initialisation : sans
+ * ça, passer sur « aucune » puis revenir perdrait la proposition, et il faudrait
+ * relancer l'entretien pour la retrouver.
+ */
+const NEW_BUDGET = '__new__';
+
+function BudgetRow({
+  value,
+  onChange,
+}: {
+  value: PlanBudget | null;
+  onChange: (budget: PlanBudget | null) => void;
+}) {
+  const { t } = useTranslation();
+  const { data: budgets } = useBudgets();
+  const options = React.useMemo(() => selectableBudgets(budgets), [budgets]);
+  const [proposedName] = React.useState(() =>
+    value?.mode === 'new' ? value.name : '',
+  );
+
+  const selected =
+    value === null ? '' : value.mode === 'new' ? NEW_BUDGET : value.id;
+
+  const handleChange = (next: string) => {
+    if (next === '') {
+      onChange(null);
+      return;
+    }
+    if (next === NEW_BUDGET) {
+      onChange({ mode: 'new', name: proposedName });
+      return;
+    }
+    const label = options.find((option) => option.value === next)?.label ?? '';
+    onChange({ mode: 'existing', id: next, name: label });
+  };
+
+  return (
+    <FormField label={t('projects.assistant.budgetLabel')} htmlFor="review-envelope">
+      <Select
+        id="review-envelope"
+        value={selected}
+        onChange={(event) => handleChange(event.target.value)}
+        options={[
+          { value: '', label: t('projects.assistant.budgetNone') },
+          ...(proposedName
+            ? [{ value: NEW_BUDGET, label: t('projects.assistant.budgetNew', { name: proposedName }) }]
+            : []),
+          ...options,
+        ]}
+      />
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t('projects.assistant.budgetHint')}
+      </p>
+    </FormField>
   );
 }
 

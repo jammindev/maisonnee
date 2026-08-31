@@ -12,7 +12,7 @@
 
 ## Modèles & API
 
-- Modèles principaux : `Project` (status, type, dates, budget, cover_interaction) ; `ProjectGroup` ; `ProjectZone` (M2M zones) ; `ProjectDocument` ; `UserPinnedProject`
+- Modèles principaux : `Project` (status, type, dates, budget, `default_budget`, cover_interaction) ; `ProjectGroup` ; `ProjectZone` (M2M zones) ; `ProjectDocument` ; `UserPinnedProject`
 - Endpoints exposés : `/api/projects/projects/` (+ `pin/`, `unpin/`, `register-purchase/`, `assistant-step/`, `assistant-create/`, filtres `?zone=`, `?status=`), `/project-groups/`, `/project-zones/`
 - Permissions : `IsAuthenticated, IsHouseholdMember` (pas de custom)
 
@@ -167,6 +167,46 @@ phases), `ProjectAssistantInterview`, `AnswerField`, `ProjectAssistantReview`, e
 - **Le test e2e stube l'entretien et pas la création.** « Le fournisseur répond-il »
   n'a rien à faire dans un test ; « le plan relu arrive-t-il en base, et seulement
   ce qui était coché » ne se prouve qu'en traversant le vrai backend.
+
+### L'enveloppe du chantier (lot 4)
+
+`Project.default_budget` → `budget.Budget`, nullable, `SET_NULL`. Régression :
+`apps/projects/tests/test_assistant_budget.py`.
+
+- **⚠️ Une enveloppe créée pour un chantier n'est jamais plafonnée**
+  (`monthly_amount=None`). C'est l'invariant le plus tentant à « corriger » :
+  `Budget` est une enveloppe **mensuelle** et un chantier est un one-shot, donc
+  dériver un plafond de `planned_budget` inventerait un chiffre — et une fois les
+  travaux finis, la barre afficherait « 0 € / 3 200 € » tous les mois pour
+  toujours. Le plafond du chantier reste `planned_budget` ; l'enveloppe n'est
+  qu'un **axe de classement**, ce qui est exactement sa définition (« le budget
+  est la catégorie »).
+- **La désignation se fait par nom, résolue au tour d'entretien**, exactement
+  comme les zones : le modèle propose un nom, `budget.services.resolve_budget_by_name`
+  décide s'il désigne une enveloppe existante (`mode='existing'`) ou une à créer
+  (`mode='new'`). C'est le seul endroit qui sait ce que « Travaux » veut dire, et
+  la comparaison ignore casse et accents.
+- **Le budget global n'est jamais une option** — ni dans le contexte envoyé au
+  modèle, ni par `resolve_budget_by_name`, ni par un id venu du client. Il ne
+  classe rien, il plafonne tout : imputer un chantier au plafond du foyer n'a
+  aucun sens, et un modèle à qui on montre une option la choisit un jour.
+- **`mode='new'` sur un nom déjà pris rend l'existante.** L'utilisateur peut
+  renommer l'enveloppe dans l'écran de relecture, et
+  `unique_budget_name_per_household` transformerait la collision en
+  `IntegrityError`, donc en 500 sur une saisie ordinaire. Ce qu'il a demandé,
+  c'est « une enveloppe nommée X » : elle existe, on la prend.
+- **La création passe par `budget.services.create_budget`**, jamais par l'ORM —
+  c'est lui qui valide par le serializer et tient le scope foyer.
+- **« Aucune enveloppe » est un choix légitime**, pas un oubli à réparer tout de
+  suite : le détecteur `expense_without_budget` posera la question au premier
+  euro, ce qui est le bon moment.
+- **`SET_NULL`, jamais `CASCADE`** : supprimer une enveloppe est supprimer une
+  rubrique, et une rubrique qui disparaît ne doit pas emporter le chantier qui la
+  citait.
+- Côté écran, `ProjectPurchaseDialog` passe `initialBudgetId={project.default_budget}`
+  à `PurchaseForm` — **modifiable** : c'est un défaut, pas une contrainte. Sans
+  lui, chaque achat repartait sur « aucun budget », donc sur l'écart que l'app
+  aurait ensuite réclamé de réparer.
 
 ## Notes / décisions produit
 

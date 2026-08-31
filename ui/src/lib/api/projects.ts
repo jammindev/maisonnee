@@ -47,6 +47,8 @@ export interface ProjectListItem {
   cover_interaction: string | null;
   project_group: string | null;
   project_group_name: string | null;
+  /** Enveloppe à laquelle imputer par défaut les dépenses du chantier. */
+  default_budget: string | null;
   is_pinned: boolean;
   zones: ProjectZoneItem[];
   created_at: string;
@@ -295,6 +297,18 @@ export interface PlanItem {
   unresolved_zone_names: string[];
 }
 
+/**
+ * L'enveloppe du chantier, résolue par le serveur au tour d'entretien.
+ *
+ * `existing` porte l'id d'une enveloppe qui existe déjà ; `new` porte un nom que
+ * personne n'a encore créé. Pas de troisième mode : « aucune » se dit avec `null`
+ * sur le champ, parce qu'un mode « none » porteur d'un nom vide finirait par
+ * exister quelque part.
+ */
+export type PlanBudget =
+  | { mode: 'existing'; id: string; name: string }
+  | { mode: 'new'; name: string };
+
 export interface PlanProject {
   title: string;
   description: string;
@@ -306,6 +320,7 @@ export interface PlanProject {
   tags: string[];
   zone_ids: string[];
   unresolved_zone_names: string[];
+  budget: PlanBudget | null;
 }
 
 export interface AssistantPlan {

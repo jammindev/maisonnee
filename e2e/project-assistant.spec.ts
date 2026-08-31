@@ -50,7 +50,24 @@ async function projectsNamed(page: Page, title: string) {
     headers: await auth(page),
     params: { search: title },
   });
-  return unwrap<{ id: string; title: string; planned_budget: string }>(await response.json());
+  return unwrap<{
+    id: string;
+    title: string;
+    planned_budget: string;
+    default_budget: string | null;
+  }>(await response.json());
+}
+
+/** Supprime l'enveloppe créée par l'entretien — la base n'est pas réinitialisée
+ *  entre les fichiers, et un nom d'enveloppe est unique par foyer. */
+async function removeEnvelope(page: Page, name: string): Promise<void> {
+  const headers = await auth(page);
+  const response = await page.request.get('/api/budget/budgets/', { headers });
+  for (const budget of unwrap<{ id: string; name: string }>(await response.json())) {
+    if (budget.name === name) {
+      await page.request.delete(`/api/budget/budgets/${budget.id}/`, { headers });
+    }
+  }
 }
 
 /** Repart d'un foyer sans ce chantier : les specs partagent une base qui n'est
@@ -144,6 +161,7 @@ async function stubInterview(page: Page, zoneId: string): Promise<void> {
             tags: [],
             zone_ids: [zoneId],
             unresolved_zone_names: [],
+            budget: { mode: 'new', name: 'Terrasse assistant' },
           },
           tasks: [
             {
@@ -192,6 +210,7 @@ test.describe('Création de projet par entretien', () => {
   test.afterEach(async ({ page }) => {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await removeProjects(page, TITLE);
+    await removeEnvelope(page, 'Terrasse assistant');
   });
 
   test('PROJ-01/05/06/11 — raconter, relire, décocher, créer', async ({ page }) => {
@@ -232,6 +251,10 @@ test.describe('Création de projet par entretien', () => {
     await dialog.locator('#tasks-keep-1').uncheck();
     await dialog.getByRole('textbox', { name: 'Choisir l’essence de bois' }).fill('Choisir le bois');
 
+    // PROJ-12 — l'enveloppe proposée est **choisie**, pas imposée : elle apparaît
+    // dans un sélecteur, avec « aucune » disponible juste à côté.
+    await expect(dialog.locator('#review-envelope')).toHaveValue('__new__');
+
     await dialog.getByRole('button', { name: 'Créer le projet' }).click();
 
     // On mène au chantier : « c'est fait » sans pouvoir aller voir est
@@ -248,6 +271,18 @@ test.describe('Création de projet par entretien', () => {
     const subjects = unwrap<{ subject: string }>(await tasks.json()).map((task) => task.subject);
     expect(subjects).toContain('Choisir le bois');
     expect(subjects).not.toContain('Louer une bétonnière');
+
+    // PROJ-12 — et l'enveloppe existe, sans plafond : elle classe les dépenses du
+    // chantier, elle ne les borne pas.
+    expect(created.default_budget).not.toBeNull();
+    const envelopes = await page.request.get('/api/budget/budgets/', {
+      headers: await auth(page),
+    });
+    const envelope = unwrap<{ id: string; name: string; monthly_amount: string | null }>(
+      await envelopes.json(),
+    ).find((row) => row.id === created.default_budget);
+    expect(envelope?.name).toBe('Terrasse assistant');
+    expect(envelope?.monthly_amount).toBeNull();
   });
 
   test('PROJ-08 — fermer l’entretien n’écrit rien', async ({ page }) => {

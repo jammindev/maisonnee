@@ -75,6 +75,9 @@ MAX_NOTES = 10
 #: ``zones.services.resolve_zone_ids``, qui, elle, les voit toutes.
 MAX_CONTEXT_ZONES = 80
 
+#: Même borne, même raison, pour les enveloppes budgétaires.
+MAX_CONTEXT_BUDGETS = 40
+
 
 @dataclass(frozen=True)
 class Question:
@@ -142,7 +145,9 @@ _PLAN_SHAPE = (
     '"type":"<one of the types listed below>","priority":<1-5>,'
     '"planned_budget":"<decimal string or null>",'
     '"start_date":"<YYYY-MM-DD or null>","due_date":"<YYYY-MM-DD or null>",'
-    '"tags":["<short>",…],"zone_names":["<exact name from the list below>",…]},'
+    '"tags":["<short>",…],"zone_names":["<exact name from the list below>",…],'
+    '"budget":"<exact name of one existing envelope listed below, OR a short new'
+    ' name for one, OR null>"},'
     '"tasks":[{"subject":"<imperative, short>","content":"<why / how, 1-2 '
     'sentences>","priority":<1-5 or null>,"due_date":"<YYYY-MM-DD or null>",'
     '"zone_names":["<exact name>",…]}],'
@@ -153,7 +158,9 @@ _PLAN_SHAPE = (
     "to a value the user actually gave you — never to an estimate of your own. "
     "Leave zone_names empty on a task or note that happens in the same place as "
     "the project itself — the app makes it inherit. Only name a room on an item "
-    "that really happens somewhere else."
+    "that really happens somewhere else. For 'budget', PREFER an existing "
+    "envelope from the list; propose a new name only when none of them fits, and "
+    "never invent a ceiling amount — the envelope only files expenses."
 )
 
 
@@ -212,8 +219,47 @@ def next_step(
         # Les noms de pièces deviennent des ids **ici**, avant que l'écran
         # n'affiche quoi que ce soit : ce qui est relu doit être exactement ce
         # qui sera écrit. Voir `resolve_plan_zones`.
-        plan=resolve_plan_zones(household, step.plan) if step.plan else None,
+        plan=resolve_plan_references(household, step.plan) if step.plan else None,
     )
+
+
+def resolve_plan_references(household, plan: Plan) -> Plan:
+    """Les noms du plan deviennent des références réelles — zones et enveloppe.
+
+    Une seule raison pour les deux : **ce qui est relu doit être exactement ce qui
+    sera écrit.** Résoudre à l'écriture ferait retomber une pièce mal nommée sur
+    les zones du projet, ou une enveloppe inconnue sur rien, *après* que
+    l'utilisateur a validé — donc sans qu'il puisse le voir ni le corriger.
+    """
+    return _with_budget(household, resolve_plan_zones(household, plan))
+
+
+def _with_budget(household, plan: Plan) -> Plan:
+    """Remplace `budget_name` par ce que l'écran doit montrer et poster.
+
+    Trois sorties, et aucune n'est un silence :
+
+    - le nom désigne une enveloppe du foyer → ``{mode: 'existing', id, name}`` ;
+    - il n'en désigne aucune → ``{mode: 'new', name}``, et l'écran dit « nouvelle
+      enveloppe » avant que rien ne soit créé ;
+    - aucun nom → ``None``, et le chantier n'a pas d'enveloppe. C'est un choix
+      légitime : le détecteur `expense_without_budget` le signalera au premier
+      euro, ce qui est le bon moment pour poser la question.
+    """
+    from budget.services import resolve_budget_by_name
+
+    project = dict(plan.project)
+    name = project.pop("budget_name", None)
+    if not name:
+        project["budget"] = None
+    else:
+        existing = resolve_budget_by_name(household, name)
+        project["budget"] = (
+            {"mode": "existing", "id": str(existing.id), "name": existing.name}
+            if existing is not None
+            else {"mode": "new", "name": name[:120]}
+        )
+    return Plan(project=project, tasks=plan.tasks, notes=plan.notes)
 
 
 def resolve_plan_zones(household, plan: Plan) -> Plan:
@@ -303,6 +349,7 @@ def _user_message(household, *, subject: str, turns: list[dict], language: str) 
         f"Allowed project types: {', '.join(Project.Type.values)}",
         f"Rooms and areas of this home (use these exact names): "
         f"{_zone_names(household)}",
+        f"Spending envelopes this home already uses: {_budget_names(household)}",
     ]
     if turns:
         lines.append("")
@@ -315,6 +362,23 @@ def _user_message(household, *, subject: str, turns: list[dict], language: str) 
         lines.append("")
         lines.append("No question has been asked yet.")
     return "\n".join(lines)
+
+
+def _budget_names(household) -> str:
+    """Les enveloppes existantes, pour que le modèle **réutilise** au lieu d'inventer.
+
+    Le budget global est exclu : il ne classe rien, il plafonne tout. Proposer un
+    chantier au plafond du foyer n'aurait aucun sens, et un modèle à qui on
+    montre une option la choisit un jour.
+    """
+    from budget.models import Budget
+
+    names = list(
+        Budget.objects.filter(household=household, is_global=False)
+        .order_by("name")
+        .values_list("name", flat=True)[:MAX_CONTEXT_BUDGETS]
+    )
+    return ", ".join(names) if names else "(none yet)"
 
 
 def _zone_names(household) -> str:
@@ -442,6 +506,10 @@ def _clean_project(raw: dict) -> dict:
         "due_date": _text(raw.get("due_date")) or None,
         "tags": _names(raw.get("tags")),
         "zone_names": _names(raw.get("zone_names")),
+        # Un **nom**, comme les zones : la résolution en id (ou en « à créer »)
+        # est faite plus bas, par le seul endroit qui sait ce qu'un nom
+        # d'enveloppe désigne.
+        "budget_name": _text(raw.get("budget")) or None,
     }
 
 

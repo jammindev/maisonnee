@@ -3080,7 +3080,11 @@
         "amountPlaceholder": "Un montant",
         "otherPlaceholder": "…ou autre chose",
         "textPlaceholder": "Ta réponse"
-      }
+      },
+      "budgetLabel": "Enveloppe des dépenses",
+      "budgetNone": "Aucune enveloppe",
+      "budgetNew": "Créer « {{name}} »",
+      "budgetHint": "Elle classe les dépenses du chantier, elle ne les plafonne pas — le plafond reste le budget prévisionnel ci-dessus."
     }
   },
   "notifications": {

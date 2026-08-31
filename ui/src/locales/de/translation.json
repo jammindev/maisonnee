@@ -3080,7 +3080,11 @@
         "amountPlaceholder": "Ein Betrag",
         "otherPlaceholder": "…oder etwas anderes",
         "textPlaceholder": "Deine Antwort"
-      }
+      },
+      "budgetLabel": "Ausgaben-Umschlag",
+      "budgetNone": "Kein Umschlag",
+      "budgetNew": "„{{name}}“ erstellen",
+      "budgetHint": "Er ordnet die Ausgaben des Projekts ein, begrenzt sie aber nicht — die Obergrenze bleibt das geplante Budget oben."
     }
   },
   "notifications": {

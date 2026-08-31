@@ -3080,7 +3080,11 @@
         "amountPlaceholder": "An amount",
         "otherPlaceholder": "…or something else",
         "textPlaceholder": "Your answer"
-      }
+      },
+      "budgetLabel": "Spending envelope",
+      "budgetNone": "No envelope",
+      "budgetNew": "Create “{{name}}”",
+      "budgetHint": "It files the project’s expenses, it does not cap them — the ceiling stays the planned budget above."
     }
   },
   "notifications": {
