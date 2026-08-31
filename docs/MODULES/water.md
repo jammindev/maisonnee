@@ -86,10 +86,31 @@ l'index reste en retrait, parce que c'est lui qu'on relit sur le compteur. La
 ligne reste **le relevé** et non l'intervalle — éditer et supprimer agissent sur
 un objet, et un intervalle n'en est pas un.
 
-**`WaterGranularity` reste plus large que `WaterChartGranularity`** : l'API
-accepte toujours `day`, dont `dashboard/WaterCard` se sert pour sa sparkline sur
-30 jours. Cette sparkline porte le même défaut en miniature (elle est plate quand
-les relevés sont mensuels) — hors périmètre de #682 — suivi en #683.
+**La carte du tableau de bord (#683).** Elle demandait `granularity=day` sur
+trente jours : avec des relevés mensuels la proratisation renvoyait trente valeurs
+identiques, donc une **sparkline rigoureusement plate** affirmant « ta
+consommation ne bouge pas » — le défaut de #678 en miniature. Elle lit maintenant
+**deux fenêtres**, parce que ses deux chiffres ne répondent pas à la même
+question (`dashboard/waterWindows.ts`) :
+
+- le chiffre de tête est un **débit** sur 30 jours glissants — robuste, toujours
+  calculable, insensible au fait qu'un mois soit commencé ;
+- la sparkline est une **tendance** sur les douze derniers mois **révolus**. Le
+  mois en cours est exclu : entamé, il est mécaniquement plus bas que les autres,
+  et l'inclure ferait plonger la courbe à droite *tous les mois* — une tendance qui
+  descend toujours se lit « on consomme de moins en moins ».
+
+`total_l` ne dépendant pas du découpage, demander le mois plutôt que le jour ne
+change pas le chiffre de tête. Plus personne n'envoie `day`, d'où le type unifié :
+`WaterChartGranularity` a disparu, `WaterGranularity` vaut `month | year`. Le
+serveur accepte encore `day` ; le type l'interdit pour qu'on ne le réintroduise
+pas sans y penser.
+
+**Au passage** : `dashboard/hooks.ts::isoDate` calculait ses bornes avec
+`toISOString()` — le pattern que `CLAUDE.md` interdit, et la dernière entorse du
+tableau de bord. À Paris, minuit local recule d'un jour en UTC : entre minuit et
+2 h, les quatre cartes qui s'en servent partaient décalées aux deux bouts. Il
+délègue maintenant à `toLocalISODate`.
 
 Régressions : `ui/src/features/water/waterSeries.test.ts` (13 cas, dont la
 qualification mesuré / estimé / partiel) et `ui/src/features/weather/overlay.test.ts`.

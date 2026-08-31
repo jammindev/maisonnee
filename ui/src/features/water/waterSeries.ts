@@ -1,6 +1,6 @@
 import { toLocalISODate } from '@/lib/format';
 
-import type { WaterChartGranularity } from '@/lib/api/water';
+import type { WaterGranularity } from '@/lib/api/water';
 
 /**
  * Ce qui se calcule avant de dessiner la consommation d'eau (#678, #682).
@@ -124,7 +124,7 @@ export function coveredDays(intervals: WaterInterval[], from: string, to: string
 }
 
 /** Bornes calendaires d'un bucket, depuis le `ts` que renvoie le serveur. */
-function bucketRange(ts: string, granularity: WaterChartGranularity): { start: string; end: string } {
+function bucketRange(ts: string, granularity: WaterGranularity): { start: string; end: string } {
   const start = ts.slice(0, 10);
   const [year, month] = start.split('-').map(Number);
   const end =
@@ -146,7 +146,7 @@ export function qualifyBuckets(
   buckets: { ts: string; total_l: number }[],
   intervals: WaterInterval[],
   readings: ReadingLike[],
-  granularity: WaterChartGranularity,
+  granularity: WaterGranularity,
 ): QualifiedBucket[] {
   return buckets.map(({ ts, total_l }) => {
     const { start, end } = bucketRange(ts, granularity);
