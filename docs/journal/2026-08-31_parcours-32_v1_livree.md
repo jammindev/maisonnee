@@ -5,11 +5,10 @@
 > sont dans [le backlog](../parcours/PARCOURS_32_BACKLOG_TECHNIQUE.md) ; celles-ci
 > ont été prises **pendant** l'écriture, et aucune n'était prévue.
 >
-> ⚠️ **« Complète » veut dire écrite, pas déployée.** À la date de ce document,
-> les lots 1 et 2 sont en production et les lots 3, 4 et 5 attendent le feu vert
-> de merge — donc *la feature n'existe encore pour personne* : le backend en prod
-> n'est appelé par aucun écran. C'est le seul état de ce parcours qu'il faut avoir
-> en tête en le lisant.
+> ⚠️ **Écrit le 31/08 avant le merge, quand « complète » voulait dire écrite et
+> pas déployée.** Les lots 3, 4 et 5 ont été mergés dans la foulée — voir
+> « [Suite — le train de merge](#suite--le-train-de-merge-3108) » en fin de
+> document, qui porte l'état réel et une neuvième chose qui a résisté.
 
 ## Contexte
 
@@ -24,13 +23,14 @@ fois, puis propose le projet, ses tâches, ses notes et son enveloppe. Rien n'es
 |---|---|---|---|
 | 1 — le moteur d'entretien | #653 | **#665** | en production |
 | 2 — l'écriture du plan | #654 | **#668** | en production |
-| 3 — l'écran et la relecture | #655 | **#672** | verte, mergeable, **non mergée** |
-| 4 — l'enveloppe du chantier | #656 | **#675** | verte, mergeable, **non mergée** |
-| 5 — les pièces jointes | #657 | *cette PR* | — |
-| Issue parente **#652** | | | reste ouverte jusqu'au merge des trois |
+| 3 — l'écran et la relecture | #655 | **#672** | en production |
+| 4 — l'enveloppe du chantier | #656 | **#675** | en production |
+| 5 — les pièces jointes | #657 | **#687** | en production |
+| Issue parente **#652** | | | fermée au merge des trois |
 
-Ordre de merge obligatoire : **#672 → #675 → lot 5**, sans `--delete-branch` sur
-les intermédiaires — supprimer la base d'une PR empilée ferme la suivante.
+Ordre de merge tenu : **#672 → #675 → #687**, sans `--delete-branch` sur les
+intermédiaires — supprimer la base d'une PR empilée ferme la suivante. Ce que ça
+a coûté est raconté en fin de document.
 
 Différé exprès : **#658** (corriger la façon dont l'assistant construit un
 chantier). Il demande de décider *où vit la préférence du foyer* avant d'écrire
@@ -177,12 +177,50 @@ entièrement ⬜ sur une feature complète n'est pas un état, c'est un reliquat
   migration non mergée.
 - **Collision de migration `projects/0009`** avec le parcours 33, dont le fichier
   n'était pas commité — donc invisible à un `git ls-tree`. Tranché entre sessions :
-  #675 passe en premier, le parcours 33 renumérote en `0010`.
+  #675 passe en premier, le parcours 33 renumérote en `0010`. #675 est mergée
+  depuis, donc **la renumérotation est due** avant que #680 puisse l'être.
 - **`gh pr checks` retarde d'environ 30 s sur `gh run list`** : « no checks
   reported » ne veut pas dire « rien ne tourne ». Et une PR **en conflit** n'a
   *aucun* run — GitHub ne calcule pas la ref de merge, donc n'arme pas la CI.
   Changer la base d'une PR émet `edited`, qui n'est pas dans les types écoutés par
   `ci.yml` : il faut `gh pr close && gh pr reopen` pour déclencher `reopened`.
+
+## Suite — le train de merge (31/08)
+
+Les trois PR ont été mergées le soir même, dans l'ordre, en **squash** (c'est ce
+que le dépôt avait fait pour les lots 1 et 2). Chaque merge a déclenché son
+déploiement ; celui du lot 5 (run `33441328105`) a bien un job
+`Deploy to Production` en **`success`**, pas en `skipped` — la distinction a déjà
+coûté une demi-journée sur un autre chantier, elle se vérifie à chaque fois.
+
+### 9. Une squash-merge met sa propre PR empilée en conflit
+
+Constaté deux fois, à l'identique. Après le squash de #672, la PR #675 est passée
+`mergeable: false / dirty` sur neuf fichiers ; après le squash de #675, #687 en a
+eu quatorze. Ce n'est **pas** un désaccord de contenu : le commit d'origine du lot
+mergé n'est plus un ancêtre de `main`, donc les fichiers qu'il crée arrivent des
+deux côtés en `add/add`, et git ne peut pas savoir que c'est le même travail. Les
+catalogues i18n conflictaient en plus pour une vraie raison — d'autres PR y avaient
+ajouté des clés entre-temps.
+
+**Tranché** : ne rien arbitrer à la main. Pour chaque fichier en conflit, la
+version de `main` (qui porte déjà le lot précédent squashé *et* ce que les autres
+PR y ont ajouté), puis le diff du lot courant rejoué par-dessus — quinze lignes de
+shell, rejouables. Ce qui rend la méthode sûre est son **contrôle** : le résultat
+doit valoir exactement `main` **plus le diff d'origine du lot**, au fichier et à la
+ligne près. Lot 4 : 17 fichiers, 721 insertions, 10 suppressions. Lot 5 : 19
+fichiers, 1217 insertions, 71 suppressions. Les deux ont coïncidé.
+
+C'est la règle des deux espaces appliquée à un merge : « ce diff est-il le bon ? »
+a une réponse **calculable**, et une résolution relue à l'œil sur vingt-trois
+fichiers ne l'aurait pas prouvée — un conflit résolu de travers ressemble
+exactement à un conflit résolu juste, et c'est du code de production qui part
+tout seul derrière. Rejouer les tests après chaque résolution a confirmé :
+964 tests serveur, 451 vitest, 7 Playwright, `build` et `lint` verts.
+
+**À retenir pour la prochaine pile** : le conflit n'est pas un accident, c'est la
+conséquence mécanique du squash. Il se produira à chaque étage, et il se résout
+par un calcul, jamais par un arbitrage.
 
 ## Réserves connues, non traitées ici
 
