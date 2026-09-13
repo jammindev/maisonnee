@@ -1244,6 +1244,47 @@ de mise en page : le foyer ne pouvait pas saisir.
   source. Et **en revue, `text-sm` sur un champ ressemble exactement à
   `md:text-sm`.**
 
+### Un fichier stocké se télécharge — une PWA installée n'a pas de retour
+
+La section précédente invoquait déjà « en PWA installée aucun geste ne ramène » ;
+voici la forme générale de cette phrase. Tout lien vers un fichier du foyer
+(`/media/…`) porte **`download`**, jamais `target="_blank"`. Régression :
+`ui/src/lib/pwa/stored-file-links.test.ts`.
+
+**Pourquoi c'est du métier et pas de la plomberie :** en mode standalone il n'y a
+**pas de barre de navigation**, et `target="_blank"` n'ouvre pas d'onglet — un
+fichier servi par `/media/` est same-origin et *dans le `scope` du manifeste*
+(`/`), donc la fenêtre de l'app l'honore **sur place**. Le foyer touchait
+« Télécharger » sur un PDF et se retrouvait devant le fichier, sans bouton, sans
+geste : il fallait fermer l'app. Toute navigation qui sort du SPA est une porte à
+sens unique. `PhotoLightbox` portait déjà `download` ; la page document non,
+alors que son libellé disait « Télécharger » — l'interface promettait, le clic
+démentait.
+
+- **Le scope du manifeste ne peut pas régler ça.** Le réduire à `/app/` sortirait
+  aussi `/login`, `/setup`, `/join/:token` et `/z/:token` de l'app : se
+  déconnecter éjecterait vers le navigateur. La règle vit donc **au niveau du
+  lien**, et c'est le contrôle statique qui la tient.
+- **⚠️ Un `<a download>` reste une navigation pour le service worker.** Chromium
+  lui passe l'événement en `mode: 'navigate'` ; `templates/sw.js` stockait
+  *toute* réponse de navigation réussie comme coquille hors-ligne, donc ouvrir un
+  document remplaçait le tableau de bord hors-ligne par le PDF. Deux gardes
+  indépendantes, et il faut les deux : `/media/` n'est **pas intercepté**, et
+  seule une réponse **HTML** devient la coquille. Sans la seconde, corriger le
+  lien reproduisait le défaut ; sans la première, chaque téléchargement
+  transiterait par la logique de coquille. Régression :
+  `ui/src/lib/pwa/service-worker-shell.test.ts`, qui exécute `sw.js` dans un
+  `self` factice — il n'a ni import ni build, donc il est testable tel quel.
+- **Le contrôle est statique, et il ne peut pas être autre chose** — même raison
+  qu'à la section précédente : le piège n'existe qu'en display-mode standalone,
+  que ni jsdom ni un navigateur piloté ne reproduisent (il n'y a pas de chrome à
+  retirer dans un onglet). La propriété, elle, est déterministe : c'est un
+  attribut, il se lit dans la source. Et **en revue, `target="_blank"` sur un
+  fichier ressemble exactement à `download`.**
+- Limite assumée, même forme que les clés i18n construites : un `href` qui passe
+  par un alias (`const url = doc.file_url`) échappe au contrôle. Ce qui est tenu,
+  c'est la forme que le dépôt écrit.
+
 ### Dates de calendrier — jamais `toISOString()`
 
 Même règle, pour la même raison. Une date `YYYY-MM-DD` passe par

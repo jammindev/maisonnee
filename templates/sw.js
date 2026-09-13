@@ -8,7 +8,9 @@
  * Rôles :
  *  - rendre l'app installable + consultable hors-ligne (cache app-shell + assets
  *    Vite immuables). Les réponses /api ne sont volontairement jamais mises en
- *    cache ici (auth par Bearer token → risque de fuite entre utilisateurs).
+ *    cache ici (auth par Bearer token → risque de fuite entre utilisateurs), et
+ *    /media n'est pas intercepté du tout (un fichier du foyer n'est pas une page
+ *    de l'app — voir la garde du handler `fetch`).
  *  - recevoir les notifications push (Web Push) et gérer le clic → deep-link.
  *
  * Fichier servi via TemplateView : ne pas y introduire de syntaxe de template
@@ -53,13 +55,23 @@ async function cacheFirst(request) {
   return response;
 }
 
+function isHtml(response) {
+  const type = response.headers.get('content-type') || '';
+  return type.includes('text/html');
+}
+
 async function networkFirstShell(request) {
   const cache = await caches.open(SHELL_CACHE);
   try {
     const response = await fetch(request);
-    if (response && response.ok) {
-      // Tous les chemins /app/* renvoient le même index.html : on le stocke
-      // sous une clé unique pour servir n'importe quelle route hors-ligne.
+    // Tous les chemins /app/* renvoient le même index.html : on le stocke sous
+    // une clé unique pour servir n'importe quelle route hors-ligne.
+    //
+    // La garde sur le type est ce qui rend cette clé unique tenable : une
+    // navigation qui ne rend pas une page (un fichier, un export, un flux)
+    // remplacerait la coquille par elle, et l'app relancée hors-ligne
+    // afficherait ce contenu au lieu du tableau de bord.
+    if (response && response.ok && isHtml(response)) {
       cache.put(SHELL_KEY, response.clone());
     }
     return response;
@@ -129,7 +141,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (request.mode === 'navigate') {
+  // ⚠️ Un fichier du foyer n'est pas une page de l'app, et le service worker ne
+  // doit pas s'en mêler : un `<a download>` arrive ici en `mode: 'navigate'`
+  // (Chromium), donc l'intercepter ferait passer chaque téléchargement par la
+  // logique de coquille — celle-là même qui, avant la garde sur le type,
+  // remplaçait la page hors-ligne par le PDF qu'on venait d'ouvrir. Il n'y a
+  // rien à servir hors-ligne pour un fichier : on laisse descendre au réseau.
+  if (request.mode === 'navigate' && !url.pathname.startsWith('/media/')) {
     event.respondWith(networkFirstShell(request));
     return;
   }
