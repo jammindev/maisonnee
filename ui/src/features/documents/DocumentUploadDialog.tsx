@@ -9,6 +9,7 @@ import { Button } from '@/design-system/button';
 import { FormField } from '@/design-system/form-field';
 import { Label } from '@/design-system/label';
 import { DOCUMENT_TYPES, type DocumentType, type DocumentDetail } from '@/lib/api/documents';
+import { apiErrorMessage } from '@/lib/apiError';
 import { useCreateDocument } from './hooks';
 import ZonePicker from '@/features/zones/ZonePicker';
 
@@ -103,6 +104,10 @@ export default function DocumentUploadDialog({
     const remaining = files.map((file, index) => ({ file, index })).filter(({ index }) => !done.has(index));
     const nextDone = new Set(done);
     const nextFailed = new Set<number>();
+    // Ce que le serveur a répondu sur le premier échec. Il sait pourquoi il a
+    // refusé — taille, type, débit — et le dit déjà dans la langue du lecteur ;
+    // le taire laisse réessayer à l'identique.
+    let serverMessage: string | null = null;
 
     // Séquentiel, jamais en parallèle : le serveur normalise l'image, lit l'EXIF
     // et génère les vignettes à chaque fichier. Vingt requêtes d'un coup, c'est
@@ -122,9 +127,10 @@ export default function DocumentUploadDialog({
         nextDone.add(index);
         setDone(new Set(nextDone));
         await onSaved(response.document);
-      } catch {
+      } catch (err) {
         nextFailed.add(index);
         setFailed(new Set(nextFailed));
+        serverMessage = serverMessage ?? apiErrorMessage(err);
       }
     }
 
@@ -136,11 +142,11 @@ export default function DocumentUploadDialog({
       onOpenChange(false);
       return;
     }
-    setError(
+    const fallback =
       files.length === 1
         ? t('documents.uploadFailed')
-        : t('documents.upload.someFailed', { count: nextFailed.size }),
-    );
+        : t('documents.upload.someFailed', { count: nextFailed.size });
+    setError(serverMessage ? `${fallback} ${serverMessage}` : fallback);
   };
 
   const baseTitle = isPhotoMode ? t('photos.upload_title') : t('documents.upload.title');

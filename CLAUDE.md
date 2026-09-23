@@ -292,6 +292,34 @@ de la CI, bloquant pour le deploy). Ce que tout changement doit préserver :
   healthcheck y sert de porte au `up -d --wait` : un hoquet de postgres marquerait
   `web` malade alors qu'il va bien, et le deploy suivant attendrait pour rien.
 
+## Journalisation — un 500 sans traceback n'est pas un incident, c'est un mystère
+
+`config/settings/base.py` § LOGGING. **Ne jamais retirer ce bloc, et ne jamais
+laisser Django appliquer sa config par défaut** : son handler console est filtré
+par `require_debug_true`, donc en production (`DEBUG=False`) le seul handler
+restant est `mail_admins`, qui exige des `ADMINS` et un SMTP — que ce projet n'a
+pas. Conséquence vécue : un envoi de document répondait 500 depuis des semaines
+en ne laissant **aucune trace** dans `docker compose logs web`, seulement la
+ligne d'accès gunicorn. Le défaut n'était pas dur à corriger, il était
+impossible à *voir*.
+
+- **Tout part sur stdout**, que Docker capture. Pas de fichier, pas de rotation
+  à gérer, `docker compose logs web` est la seule porte.
+- **`django.request` porte son propre handler et ne propage pas** — c'est le
+  logger qui tient les tracebacks des exceptions non rattrapées. Le reste du
+  projet peut changer de niveau sans jamais lui faire perdre la sienne.
+- **`LOG_LEVEL` se pose par variable d'environnement** : passer à `DEBUG` pour
+  une session de diagnostic ne doit pas demander de redéployer une image.
+- **Le SQL reste à `WARNING`.** À `INFO`, `django.db.backends` noie tout le
+  reste, et un log qu'on n'ouvre plus ne vaut pas mieux qu'un log vide.
+- Corollaire, et c'est le vrai enseignement : **une erreur avalée est un bug qui
+  se paie deux fois.** Le front faisait `catch {}` sur l'envoi et affichait sa
+  phrase générique par-dessus le message du serveur — qui disait déjà, traduit,
+  « Fichier trop volumineux (34 Mo). Maximum : 20 Mo. » Tout `catch` sur un
+  appel d'API passe par `apiErrorMessage` (`ui/src/lib/apiError.ts`), qui rend
+  `null` quand le serveur n'a rien dit d'exploitable — à l'appelant de fournir
+  son repli, jamais de l'imposer.
+
 ## Débit — un compteur par process n'est pas un compteur
 
 Doc : `docs/MODULES/security.md` § Throttling. Régression :

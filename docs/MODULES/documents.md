@@ -210,9 +210,43 @@ nature il est.
 - Images (JPEG, PNG, WebP, GIF) → Claude Haiku 4.5 Vision (base64).
 - PDF → pypdf (text-based uniquement — PDFs scannés renvoient `pypdf_empty`).
 - Fail-soft : tout échec → `("", "skipped")`. Le doc est toujours créé et utilisable.
-- Méthodes retournées : `vision_haiku`, `vision_empty`, `pypdf`, `pypdf_empty`, `skipped`.
+- Méthodes retournées : `vision_haiku`, `vision_empty`, `pypdf`, `pypdf_lossy`,
+  `pdf_vision_haiku`, `pdf_vision_empty`, `skipped`.
 - HEIC/HEIF → normalisé en JPEG avant extraction (`image_processing.py`), resize si > 2000px.
 - Photos (`type='photo'`) : pipeline thumbnails (Pillow) à la place de l'OCR (`views.py:274-277`).
+- **Le texte extrait ne porte jamais d'octet NUL** (`extraction._strip_nul`).
+  Postgres refuse `0x00` dans une colonne texte. Le nettoyage vit dans
+  l'enveloppe `extract_text`, donc sur toutes ses branches présentes et à
+  venir, et **pas** chez ses trois consommateurs (envoi, backfill, reprocess) :
+  trois copies d'un même garde-fou divergent, et c'est celle qu'on oublie qui
+  casse.
+- **⚠️ Un NUL n'est pas du bruit, c'est un aveu du PDF — et il déclenche le
+  repli Vision.** Le fichier déclare lui-même `<AB> -> <0000>` dans sa table
+  `ToUnicode` : il ne sait pas à quel caractère correspond un de ses glyphes.
+  Cas réel et **fréquent** : les ligatures `fi`/`fl` d'une fonte **Type3**
+  sous-ensemblée, dont les glyphes s'appellent `/gAB` — donc rien à récupérer
+  ni par la table, ni par les noms. « bénéficiaire » ressort
+  « béné`<NUL>`ciaire », et le mot devient introuvable en recherche. Ce n'est
+  pas un PDF cassé : c'est un PDF dont la couche texte est **lacunaire**, donc
+  le même cas qu'un scan — d'où le même repli, page par page.
+  - Le repli ne se déclenche **que** sur un NUL ou un texte vide : un PDF sain
+    ne paie jamais un appel Vision (`test_a_clean_pdf_never_pays_for_vision`).
+  - Sans clé Anthropic, `_extract_pdf_with_vision` rend `""` sans appeler
+    personne : on **garde** alors le texte pypdf nettoyé plutôt que de perdre le
+    document, mais sous la méthode **`pypdf_lossy`** et non `pypdf`. Un texte
+    faux qu'on croit bon ne se corrige jamais — c'est la même règle que
+    « le vide n'est pas `memory` » et que `inflow_nature == ""` ≠ `"other"` :
+    ce qui est dégradé se flagge, il ne se fond pas dans le cas nominal.
+- **⚠️ Le fail-soft couvre l'écriture, pas seulement l'extraction.** Quand
+  `_run_extraction` tourne, le document est **déjà commité** : l'extraction est
+  un bonus, et rien de ce qu'elle fait ne doit répondre 500. Garder
+  `extract_text` sous garde en laissant son `save` à nu n'en protégeait que la
+  moitié — un texte que Postgres refusait faisait annoncer « Impossible de
+  téléverser le document » sur un document **bien créé**, et le réessai de
+  l'utilisateur en créait un second. Un échec annoncé sur une opération réussie
+  ne coûte pas une incompréhension, il coûte un doublon. Régressions :
+  `test_api_documents.py::test_upload_succeeds_when_extracted_text_carries_nul_bytes`
+  et `::test_upload_succeeds_when_persisting_the_extraction_throws`.
 
 ### Sécurité fichiers (`apps/core/views_media.py`, `apps/core/file_validation.py`)
 

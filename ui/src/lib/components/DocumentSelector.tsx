@@ -14,6 +14,7 @@ import {
   type DocumentType,
 } from '@/lib/api/documents';
 import { useCreateDocument } from '@/features/documents/hooks';
+import { apiErrorMessage } from '@/lib/apiError';
 
 interface DocumentSelectorProps {
   selectedDocumentIds: string[];
@@ -169,8 +170,10 @@ export function DocumentSelector({
       setUploadType('');
       setUploadNotes('');
       setUploadOpen(false);
-    } catch {
-      setUploadError(t('documentSelector.upload_failed'));
+    } catch (err) {
+      const detail = apiErrorMessage(err);
+      const fallback = t('documentSelector.upload_failed');
+      setUploadError(detail ? `${fallback} ${detail}` : fallback);
     } finally {
       setUploading(false);
     }

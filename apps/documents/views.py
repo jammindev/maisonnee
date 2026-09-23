@@ -53,7 +53,16 @@ logger = logging.getLogger(__name__)
 
 
 def _run_extraction(document: Document, *, feature: str = "ocr_upload", user=None) -> None:
-    """Extract text and persist it on the document, fail-soft."""
+    """Extract text and persist it on the document, fail-soft.
+
+    **Le document est déjà commité quand on arrive ici.** L'extraction est un
+    bonus : rien de ce qu'elle fait ne doit transformer un envoi réussi en 500.
+    Garder `extract_text` sous garde mais laisser son écriture à nu revenait à
+    n'en protéger que la moitié — un texte que Postgres refuse (NUL) faisait
+    répondre « échec » sur un document bien créé, et le réessai de
+    l'utilisateur en créait un second. Le `atomic` isole l'écriture pour qu'un
+    refus de la base n'empoisonne pas la transaction de l'appelant.
+    """
     try:
         text, method = extract_text(document, feature=feature, user=user)
     except Exception as exc:
@@ -65,7 +74,11 @@ def _run_extraction(document: Document, *, feature: str = "ocr_upload", user=Non
     metadata["ocr_extracted_at"] = timezone.now().isoformat()
     metadata["ocr_method"] = method
     document.metadata = metadata
-    document.save(update_fields=["ocr_text", "metadata", "updated_at"])
+    try:
+        with transaction.atomic():
+            document.save(update_fields=["ocr_text", "metadata", "updated_at"])
+    except Exception:
+        logger.exception("persisting extraction failed for document %s", document.pk)
 
 
 #: Types searchables dont le nom est déjà pris par un autre filtre de cet
