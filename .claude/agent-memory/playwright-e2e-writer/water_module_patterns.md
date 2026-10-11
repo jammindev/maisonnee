@@ -111,4 +111,4 @@ This avoids monotonicity conflicts between tests.
 ## Worktree note
 
 The worktree `feat-water-readings` does not ship a Python venv. A symlink is needed:
-`ln -sf /Users/benjaminvandamme/Code/perso/house/venv <worktree>/venv`
+`ln -sf <main checkout>/venv <worktree>/venv`
