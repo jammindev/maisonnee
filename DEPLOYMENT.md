@@ -822,6 +822,50 @@ pull` puis `up -d`). C'est le seul mécanisme qui met la vitrine à jour — ni 
 sans déployer personne) ne s'en charge. Conséquence recherchée : après un tag, la
 démonstration se met à niveau **toute seule la nuit suivante**.
 
+### Si le domaine répond 404 : regarder la **santé** du conteneur
+
+Le premier réflexe est de chercher un problème de routage ou de certificat. Ce
+n'en est probablement pas un. Vécu le 30 août 2026, douze jours durant :
+
+```bash
+curl -sI https://demo.maisonnee.jammin-dev.com/     # 404, content-length: 19
+```
+
+Un 404 en `text/plain` de **19 octets** n'est pas une page de l'application : c'est
+la réponse par défaut de Traefik quand **aucun routeur ne correspond**. Son log
+d'accès le confirme — le champ routeur vaut `"-"` :
+
+```bash
+docker logs infra-traefik-1 2>&1 | tail -20      # le conteneur s'appelle infra-traefik-1
+docker compose ps                                 # web ... Up 13 hours (unhealthy)  ← la cause
+```
+
+**Traefik ignore les conteneurs `unhealthy`.** Un conteneur qui tourne, sur le bon
+réseau, avec des labels parfaits, disparaît malgré tout de la table de routage si
+son healthcheck Docker échoue. Et le même échec fait abandonner le
+`up -d --wait` de `reset.sh` (`container demo-web-1 is unhealthy`) : la vitrine
+devient injoignable **et** cesse d'être resemée, d'un seul coup.
+
+La cause était la sonde elle-même : elle interrogeait `127.0.0.1`, donc avec
+`Host: 127.0.0.1:8000`, que `ALLOWED_HOSTS` refuse en **400**. L'application allait
+bien ; elle déclinait la sonde au nom de sa propre sécurité. La leçon générale, et
+elle vaut au-delà de la démonstration :
+
+> Une sonde de santé **fait partie du chemin de production**. Écrite sans
+> l'en-tête `Host`, elle éteint le site — et seulement à la prochaine
+> **recréation** du conteneur, donc longtemps après la revue.
+
+Régression : `apps/core/tests/test_demo_healthcheck.py`, qui exige que toute sonde
+HTTP présente `${DOMAIN}` — la même variable que la règle Traefik et
+`ALLOWED_HOSTS`, pour que les trois ne puissent pas diverger.
+
+Pour diagnostiquer une sonde qui échoue :
+
+```bash
+docker inspect demo-web-1 --format '{{.State.Health.Status}} {{.State.Health.FailingStreak}}'
+docker inspect demo-web-1 --format '{{range .State.Health.Log}}{{.ExitCode}} {{.Output}}{{end}}'
+```
+
 ### Quatre choses à ne pas défaire
 
 - **`EMBEDDING_INDEXING_ENABLED=0` pendant la seed.** Les embeddings sont posés

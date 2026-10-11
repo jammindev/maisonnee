@@ -8,6 +8,8 @@ caller — always here.
 """
 from __future__ import annotations
 
+import unicodedata
+
 from decimal import Decimal
 
 import calendar
@@ -89,6 +91,40 @@ def create_budget(
     )
     serializer.is_valid(raise_exception=True)
     return _save_scoped(serializer, household, user, creating=True)
+
+
+def resolve_budget_by_name(household, name):
+    """L'enveloppe que désigne ce mot, ou ``None`` — jamais une devinette.
+
+    Le pendant de ``zones.services.resolve_zone`` pour l'argent, et il existe
+    pour la même raison : un foyer dit « Travaux », pas un UUID, et un seul
+    endroit doit décider ce que « Travaux » veut dire. Sans ce point unique, la
+    création assistée d'un chantier (parcours 32) aurait rouvert un second chemin
+    de désignation à côté des ids.
+
+    La comparaison ignore la casse et les accents — « travaux » doit retrouver
+    « Travaux », ce ne sont pas des différences de désignation. Le **budget
+    global est exclu** : il ne classe rien, il plafonne tout, et imputer un
+    chantier au plafond du foyer n'a pas de sens.
+
+    Renvoie ``None`` plutôt que de lever : pour l'appelant, « ce nom n'existe pas
+    encore » n'est pas une erreur, c'est la branche « alors on la crée ».
+    """
+    needle = _fold(name)
+    if not needle:
+        return None
+    household_id = getattr(household, "id", household)
+    for budget in Budget.objects.filter(household_id=household_id, is_global=False):
+        if _fold(budget.name) == needle:
+            return budget
+    return None
+
+
+def _fold(text) -> str:
+    """Minuscule sans accents — même normalisation que ``zones.services._fold``."""
+    decomposed = unicodedata.normalize("NFKD", str(text or ""))
+    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return stripped.casefold().strip()
 
 
 def update_budget(household, user, budget: Budget, *, fields: dict) -> Budget:

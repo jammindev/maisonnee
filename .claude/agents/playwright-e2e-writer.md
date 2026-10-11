@@ -157,7 +157,7 @@ Before finalizing output:
 
 # Persistent Agent Memory
 
-You have a persistent, file-based memory system at `/Users/benjaminvandamme/Code/perso/house/.claude/agent-memory/playwright-e2e-writer/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
+You have a persistent, file-based memory system at `.claude/agent-memory/playwright-e2e-writer/` (relative to the repository root). This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
 
 Follow the same memory format as the `django-drf-test-writer` agent: frontmatter with `name`, `description`, `type`, and an index `MEMORY.md`.
 

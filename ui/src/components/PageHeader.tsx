@@ -31,7 +31,7 @@ export default function PageHeader({
 }: PageHeaderProps) {
   const docTitle = documentTitle ?? (typeof title === 'string' ? title : undefined);
   React.useEffect(() => {
-    if (docTitle) document.title = `${docTitle} — House`;
+    if (docTitle) document.title = `${docTitle} — Maisonnée`;
   }, [docTitle]);
 
   return (

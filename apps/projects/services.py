@@ -126,6 +126,9 @@ def project_tab_counts(project, viewer=None) -> dict[str, int]:
 #: Les champs du plan qui vont droit dans `ProjectSerializer`. Tout le reste de
 #: la ligne `project` (notamment `unresolved_zone_names`, qui n'existe que pour
 #: l'écran) est **ignoré** : un plan porte de l'affichage en plus de la donnée.
+#: `budget` n'y est **pas** : ce n'est pas un champ de `ProjectSerializer` mais
+#: une intention (« celle-ci » ou « une neuve nommée X ») que
+#: `_resolve_or_create_budget` traduit en `default_budget`.
 _PROJECT_FIELDS = (
     "title",
     "description",
@@ -175,6 +178,10 @@ def create_project_from_plan(household, user, *, plan: dict):
     }
 
     with transaction.atomic():
+        budget = _resolve_or_create_budget(household, user, raw_project.get("budget"))
+        if budget is not None:
+            payload["default_budget"] = budget.pk
+
         serializer = ProjectSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         project = serializer.save(household=household, created_by=user)
@@ -192,6 +199,8 @@ def create_project_from_plan(household, user, *, plan: dict):
                     zone_ids=task.get("zone_ids") or None,
                 )
 
+        _link_documents(project, user, plan.get("document_ids") or [])
+
         for index, note in enumerate(plan.get("notes") or []):
             with _numbered("notes", index):
                 create_note_interaction(
@@ -207,6 +216,80 @@ def create_project_from_plan(household, user, *, plan: dict):
                 )
 
     return project
+
+
+def _link_documents(project, user, document_ids) -> None:
+    """Relie au chantier les pièces jointes pendant l'entretien.
+
+    Deux choses à ne pas défaire :
+
+    - **On ne relie que ce que ce lecteur peut lire** (`core.visibility`), et
+      seulement dans son foyer. Un id venu du client ne se croit pas, et un
+      document privé d'un autre membre ne doit pas se retrouver accroché à un
+      chantier que tout le foyer voit — ce serait la fuite de #667 par une autre
+      porte.
+    - **Un id inconnu est ignoré, il ne fait pas échouer la création.** Le
+      document a pu être supprimé entre l'entretien et la validation, et perdre
+      le chantier entier pour une pièce jointe manquante serait disproportionné :
+      les pièces sont un complément, pas la matière du plan.
+
+    La liaison passe par `documents.services.link_document` (upsert idempotent),
+    jamais par un `DocumentLink.objects.create` — c'est lui le seul point
+    d'écriture sur cette table.
+    """
+    if not document_ids:
+        return
+
+    from core.visibility import visible_to_creator
+    from documents.models import Document
+    from documents.services import link_document
+
+    readable = visible_to_creator(
+        Document.objects.filter(household=project.household, id__in=document_ids), user
+    )
+    for document in readable:
+        link_document(entity=project, document=document, user=user, role="supporting")
+
+
+def _resolve_or_create_budget(household, user, spec):
+    """L'enveloppe du chantier — retrouvée, créée, ou aucune.
+
+    Trois choses à ne pas défaire :
+
+    - **Une enveloppe créée ici naît sans plafond** (`monthly_amount=None`).
+      `Budget` est une enveloppe *mensuelle*, un chantier est un one-shot :
+      dériver un plafond de `planned_budget` inventerait un chiffre, et une fois
+      les travaux finis la barre afficherait « 0 € / 3 200 € » tous les mois pour
+      toujours. Le plafond du chantier reste `planned_budget` ; l'enveloppe n'est
+      qu'un **axe de classement** — c'est exactement sa définition.
+    - **On passe par `budget.services.create_budget`**, jamais par l'ORM : c'est
+      lui qui valide par le serializer et tient le scope foyer.
+    - **`mode='new'` sur un nom déjà pris rend l'existante.** L'utilisateur peut
+      renommer l'enveloppe dans l'écran de relecture, et
+      `unique_budget_name_per_household` transformerait la collision en
+      `IntegrityError` — donc en 500 sur une saisie parfaitement ordinaire. Ce
+      qu'il a demandé, c'est « une enveloppe nommée X » : elle existe, on la
+      prend.
+    """
+    if not spec:
+        return None
+
+    from budget.models import Budget
+    from budget.services import create_budget, resolve_budget_by_name
+
+    if spec.get("mode") == "existing":
+        # Le scope foyer se vérifie ici : un id venu du client ne se croit pas.
+        return Budget.objects.filter(
+            household=household, pk=spec.get("id"), is_global=False
+        ).first()
+
+    name = (spec.get("name") or "").strip()
+    if not name:
+        return None
+    existing = resolve_budget_by_name(household, name)
+    if existing is not None:
+        return existing
+    return create_budget(household, user, name=name, monthly_amount=None)
 
 
 @contextmanager

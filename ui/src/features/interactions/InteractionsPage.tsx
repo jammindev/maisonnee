@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import ListPage from '@/components/ListPage';
+import Pager from '@/components/Pager';
 import { FilterBar } from '@/design-system/filter-bar';
 import { useDeleteWithUndo } from '@/lib/useDeleteWithUndo';
 import { useDelayedLoading } from '@/lib/useDelayedLoading';
+import { usePager } from '@/lib/usePager';
 import type { InteractionListItem } from '@/lib/api/interactions';
 import { fetchContacts, type Contact } from '@/lib/api/contacts';
 import { useInteractions, useDeleteInteraction, interactionKeys } from './hooks';
@@ -27,6 +29,22 @@ import ZonePicker from '@/features/zones/ZonePicker';
  * liste qui cesse de les mélanger.
  */
 const EXCLUDED_TYPES = 'expense';
+
+/**
+ * Cinquante événements par page — le journal se **parcourt**, il ne se tronque pas.
+ *
+ * Cette page était la seule à laisser le serveur choisir : `default_limit = 8` sur
+ * `InteractionViewSet`, repris tel quel par le défaut de `fetchInteractions`. Elle
+ * lisait `items` et jetait `count` / `next` — un foyer de cent vingt événements en
+ * voyait huit, et rien ne le disait. Un plafond qui ne s'annonce pas est pire qu'un
+ * plafond : il se lit « je n'ai enregistré que ça ».
+ *
+ * Cinquante comme les trois autres registres (dépenses, détail de budget,
+ * opérations) ; le serveur plafonne à 100, donc agrandir la fenêtre au lieu de
+ * pager n'aurait fait que déplacer le mur — c'est l'arbitrage écrit dans
+ * `usePager`.
+ */
+const PAGE_SIZE = 50;
 
 const TYPE_OPTIONS = [
   'note',
@@ -63,6 +81,11 @@ export default function InteractionsPage() {
     fetchContacts().then(setContacts).catch(() => {});
   }, []);
 
+  const pager = usePager(
+    PAGE_SIZE,
+    `${search}|${type}|${zone}|${contact}|${structure}|${tagsFilter}|${startDate}|${endDate}`,
+  );
+
   const filters = React.useMemo(
     () => ({
       exclude_type: EXCLUDED_TYPES,
@@ -74,12 +97,25 @@ export default function InteractionsPage() {
       ...(tagsFilter ? { tags: tagsFilter } : {}),
       ...(startDate ? { start_date: startDate } : {}),
       ...(endDate ? { end_date: endDate } : {}),
+      limit: pager.limit,
+      offset: pager.offset,
     }),
-    [search, type, zone, contact, structure, tagsFilter, startDate, endDate],
+    [search, type, zone, contact, structure, tagsFilter, startDate, endDate, pager.limit, pager.offset],
   );
 
-  const { data, isLoading, error } = useInteractions(filters);
-  const items: InteractionListItem[] = data?.items ?? [];
+  const { data, isLoading, isFetching, error } = useInteractions(filters);
+  // Mémoïsé : l'effet de repli plus bas dépend de `items`, et un `?? []` fabrique
+  // un tableau neuf à chaque rendu.
+  const items: InteractionListItem[] = React.useMemo(() => data?.items ?? [], [data]);
+
+  // Une page vidée sous les doigts (suppressions depuis la liste) ramène à la
+  // première. Sans ça `ListPage` passerait en état vide — et cet état **masque la
+  // liste**, donc le pager avec elle : un cul-de-sac dont on ne revient pas.
+  React.useEffect(() => {
+    if (!isFetching && items.length === 0 && pager.offset > 0) pager.reset();
+    // `pager` entier en dépendance (comme `ExpensesPanel`) : l'objet change
+    // d'identité à chaque rendu, mais la garde rend l'effet inerte.
+  }, [isFetching, items.length, pager]);
 
   const deleteInteractionMutation = useDeleteInteraction();
 
@@ -121,7 +157,7 @@ export default function InteractionsPage() {
     setEndDate('');
   }
 
-  const isEmpty = !isLoading && !error && items.length === 0;
+  const isEmpty = !isLoading && !error && items.length === 0 && pager.offset === 0;
   const showSkeleton = useDelayedLoading(isLoading);
 
   return (
@@ -251,11 +287,22 @@ export default function InteractionsPage() {
         ) : null}
 
         {!isLoading && !error ? (
-          <ul className="space-y-2">
-            {items.map((item) => (
-              <InteractionCard key={item.id} item={item} onDelete={handleDelete} />
-            ))}
-          </ul>
+          <>
+            <ul className="space-y-2">
+              {items.map((item) => (
+                <InteractionCard key={item.id} item={item} onDelete={handleDelete} />
+              ))}
+            </ul>
+            <Pager
+              offset={pager.offset}
+              limit={pager.limit}
+              shown={items.length}
+              total={data?.count ?? items.length}
+              onPrevious={pager.previous}
+              onNext={pager.next}
+              isFetching={isFetching}
+            />
+          </>
         ) : null}
       </div>
     </ListPage>

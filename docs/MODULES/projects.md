@@ -12,7 +12,7 @@
 
 ## Modèles & API
 
-- Modèles principaux : `Project` (status, type, dates, budget, cover_interaction) ; `ProjectGroup` ; `ProjectZone` (M2M zones) ; `ProjectDocument` ; `UserPinnedProject`
+- Modèles principaux : `Project` (status, type, dates, budget, `default_budget`, cover_interaction) ; `ProjectGroup` ; `ProjectZone` (M2M zones) ; `ProjectDocument` ; `UserPinnedProject`
 - Endpoints exposés : `/api/projects/projects/` (+ `pin/`, `unpin/`, `register-purchase/`, `assistant-step/`, `assistant-create/`, filtres `?zone=`, `?status=`), `/project-groups/`, `/project-zones/`
 - Permissions : `IsAuthenticated, IsHouseholdMember` (pas de custom)
 
@@ -63,6 +63,16 @@ plan (projet + tâches + notes). Ce que tout changement doit préserver :
   version dégradée** : le formulaire de création est le repli, et il existe déjà.
 - **Throttle dédié `project_assistant` (60/h)** : un entretien vaut jusqu'à sept
   appels au fournisseur. Le plancher global compte des requêtes, pas des euros.
+- **Le rayon d'action d'une consigne injectée dans `goal` est borné, et c'est ce
+  qui rend le texte libre acceptable.** Le contexte envoyé au modèle ne contient
+  que ce que l'appelant voit déjà — les noms de zones, les enveloppes du foyer
+  (lot 4), le texte des pièces qu'il a le droit de lire (lot 5) — et la sortie
+  n'est jamais écrite : au pire, un membre se fabrique à lui-même un plan
+  absurde, qu'il lit avant de le créer. **La question a donc été reposée à chaque
+  enrichissement, et la réponse tient à une seule propriété : le contexte est
+  filtré par le lecteur, jamais par le foyer seul** (`core.visibility`, voir le
+  lot 5). Elle cesserait d'être vraie le jour où un plan se crée sans relecture,
+  ou le jour où une source non lisible par l'appelant entrerait dans le prompt.
 
 ### L'écriture du plan (lot 2)
 
@@ -116,13 +126,171 @@ plan (projet + tâches + notes). Ce que tout changement doit préserver :
   modèle : entre la génération et cet appel, l'humain a réécrit des titres et
   décoché des lignes. Les plafonds de `ProjectPlanSerializer` sont ceux du moteur
   (`MAX_TASKS` / `MAX_NOTES`) pour que le refus soit le même des deux côtés.
-- **Le rayon d'action d'une consigne injectée dans `goal` est borné, et c'est ce
-  qui rend le texte libre acceptable.** Le contexte envoyé au modèle ne contient
-  que les noms de zones du foyer — que l'appelant voit déjà — et la sortie n'est
-  jamais écrite : au pire, un membre se fabrique à lui-même un plan absurde,
-  qu'il lit avant de le créer. Cette phrase cesse d'être vraie le jour où le
-  contexte s'enrichit (documents du lot 5, budgets du lot 4) ou où un plan se
-  crée sans relecture : il faudra alors reposer la question.
+
+### L'écran (lot 3)
+
+`ui/src/features/projects/assistant/` — `ProjectAssistantDialog` (SheetDialog, deux
+phases), `ProjectAssistantInterview`, `AnswerField`, `ProjectAssistantReview`, et
+`plan.ts` pour la construction du payload. Régressions :
+`plan.test.ts` et `e2e/project-assistant.spec.ts`.
+
+- **Le bouton est absent sans la capacité, jamais grisé** (`useCapability('project_assistant')`).
+  Un bouton grisé promet et dément dans le même geste — et il n'y a rien à
+  promettre : le formulaire de création est juste à côté et **est** le repli.
+- **La bascule vers la relecture est décidée par le serveur** (`state === 'ready'`),
+  jamais par un compte de questions tenu dans le composant. Deux compteurs pour la
+  même chose finissent par se contredire, et c'est celui du serveur qui décide.
+- **`AnswerField` ne pose aucune taille de police.** `tailwind-merge` fait gagner
+  le dernier de la même famille : un `text-sm` ajouté pour tasser un champ
+  effacerait le `text-base` du design-system et ferait zoomer iOS à l'ouverture du
+  dialogue. La décision vit dans `fieldBase`, à un seul endroit.
+- **Une question d'argent se répond dans un `DecimalInput`, et le champ arrive
+  vide.** La fourchette de prix est rendue *à côté* (`question.hint`) — jamais
+  dedans. Vérifié en vrai navigateur, parce qu'un champ vide contre un champ
+  pré-rempli est une propriété du rendu et pas de la réponse HTTP.
+- **Un tour raté ne perd rien** : l'historique n'est commité qu'au succès de
+  l'appel. La version naïve (écrire l'historique avant) affichait la question
+  **deux fois** quand le modèle répondait de travers — une fois dans l'historique,
+  une fois comme question courante. Et « J'ai assez dit » emporte la réponse en
+  cours si elle a été tapée : sans ça, quelqu'un qui saisit son budget puis conclut
+  voit son montant disparaître.
+- **La mutation de création déclare trois racines** :
+  `invalidate('projects', 'tasks', 'interactions')`. Un `invalidate('projects')`
+  seul ne suffirait pas — le graphe de `lib/invalidate.ts` dit « le projet *lit*
+  les tâches et les interactions », donc écrire `projects` périme le dashboard mais
+  **pas** la liste des tâches ni le journal. Or cette écriture y crée vraiment des
+  lignes.
+- **Le brouillon ne partage aucune référence avec la réponse en cache** (`toDraft`
+  copie) : sinon éditer la relecture muterait la réponse de React Query, et
+  rouvrir le dialogue afficherait les corrections comme si elles venaient du
+  modèle.
+- **`unresolved_zone_names` est de l'affichage et ne repart jamais** dans la
+  requête. C'est le pendant écran de la règle du lot 2 : ce que le serveur n'a pas
+  su rattacher se **dit**, une fois, en tête de relecture.
+- **Le test e2e stube l'entretien et pas la création.** « Le fournisseur répond-il »
+  n'a rien à faire dans un test ; « le plan relu arrive-t-il en base, et seulement
+  ce qui était coché » ne se prouve qu'en traversant le vrai backend.
+
+### L'enveloppe du chantier (lot 4)
+
+`Project.default_budget` → `budget.Budget`, nullable, `SET_NULL`. Régression :
+`apps/projects/tests/test_assistant_budget.py`.
+
+- **⚠️ Une enveloppe créée pour un chantier n'est jamais plafonnée**
+  (`monthly_amount=None`). C'est l'invariant le plus tentant à « corriger » :
+  `Budget` est une enveloppe **mensuelle** et un chantier est un one-shot, donc
+  dériver un plafond de `planned_budget` inventerait un chiffre — et une fois les
+  travaux finis, la barre afficherait « 0 € / 3 200 € » tous les mois pour
+  toujours. Le plafond du chantier reste `planned_budget` ; l'enveloppe n'est
+  qu'un **axe de classement**, ce qui est exactement sa définition (« le budget
+  est la catégorie »).
+- **La désignation se fait par nom, résolue au tour d'entretien**, exactement
+  comme les zones : le modèle propose un nom, `budget.services.resolve_budget_by_name`
+  décide s'il désigne une enveloppe existante (`mode='existing'`) ou une à créer
+  (`mode='new'`). C'est le seul endroit qui sait ce que « Travaux » veut dire, et
+  la comparaison ignore casse et accents.
+- **Le budget global n'est jamais une option** — ni dans le contexte envoyé au
+  modèle, ni par `resolve_budget_by_name`, ni par un id venu du client. Il ne
+  classe rien, il plafonne tout : imputer un chantier au plafond du foyer n'a
+  aucun sens, et un modèle à qui on montre une option la choisit un jour.
+- **`mode='new'` sur un nom déjà pris rend l'existante.** L'utilisateur peut
+  renommer l'enveloppe dans l'écran de relecture, et
+  `unique_budget_name_per_household` transformerait la collision en
+  `IntegrityError`, donc en 500 sur une saisie ordinaire. Ce qu'il a demandé,
+  c'est « une enveloppe nommée X » : elle existe, on la prend.
+- **La création passe par `budget.services.create_budget`**, jamais par l'ORM —
+  c'est lui qui valide par le serializer et tient le scope foyer.
+- **« Aucune enveloppe » est un choix légitime**, pas un oubli à réparer tout de
+  suite : le détecteur `expense_without_budget` posera la question au premier
+  euro, ce qui est le bon moment.
+- **`SET_NULL`, jamais `CASCADE`** : supprimer une enveloppe est supprimer une
+  rubrique, et une rubrique qui disparaît ne doit pas emporter le chantier qui la
+  citait.
+- Côté écran, `ProjectPurchaseDialog` passe `initialBudgetId={project.default_budget}`
+  à `PurchaseForm` — **modifiable** : c'est un défaut, pas une contrainte. Sans
+  lui, chaque achat repartait sur « aucun budget », donc sur l'écart que l'app
+  aurait ensuite réclamé de réparer.
+
+### Les pièces jointes (lot 5)
+
+`document_ids` sur les **deux** endpoints (`assistant-step` et `assistant-create`).
+Le texte déjà extrait au téléversement entre dans le contexte ; le projet créé porte
+un `DocumentLink` par pièce. Régression :
+`apps/projects/tests/test_assistant_documents.py`.
+
+- **⚠️ Les clés de `Document` sont des ENTIERS**, pas des UUID — contrairement à
+  presque tout le reste du dépôt. Un `UUIDField` dans le serializer donne un 400
+  « Must be a valid UUID » sur une saisie parfaitement normale. Le type TS
+  `DocumentItem.id: string` est faux de son côté (l'API rend un nombre), d'où un
+  `Number(...)` **local et commenté** dans `ProjectAssistantDialog` plutôt qu'une
+  correction de type qui traverserait tous les écrans documents. La nature entière
+  de la clé est figée par `TestADocumentKeyIsAnInteger` pour que la coercition ne
+  devienne pas un mystère.
+- **⚠️ Un document privé d'un autre membre n'entre jamais dans le prompt**, et la
+  restriction passe par `core.visibility.visible_to_creator` — jamais par un `Q`
+  réécrit sur place. Ce serait la fuite du privé par une **huitième porte**, avec
+  un intermédiaire de plus : un texte parti chez un fournisseur ne se rattrape
+  pas. Même règle à la **liaison** : accrocher le privé d'un autre à un chantier
+  que tout le foyer voit publierait le fichier par l'autre bout.
+- **Le scope foyer s'applique avant tout le reste** : un id venu du client ne se
+  croit pas. Un document d'un autre foyer est **ignoré, pas refusé en 403** —
+  divergence assumée avec le critère du backlog. À ce point du code, un id
+  étranger et un id supprimé sont indistinguables ; répondre 403 sur le premier en
+  créant sur le second ferait de l'endpoint un **oracle d'existence** pour la
+  bibliothèque du voisin, et coûterait la règle « un id inconnu ne fait pas échouer
+  la création ». Le fichier n'est pas lu, c'est ce qui compte.
+- **Aucun appel de vision sur ce chemin, donc aucun cap à lui.** L'extraction a
+  déjà eu lieu au téléversement (`documents/views.py::_run_extraction`, borné par
+  la portée `document_upload`) ; ce module ne fait que **relire** un texte payé une
+  fois. Ne pas y rajouter un throttle « au cas où » : il compterait des requêtes
+  qui ne coûtent rien de plus que le tour d'entretien déjà borné à 60/h.
+- **Ce qui est envoyé est tronqué** : `MAX_DOCUMENTS = 5`,
+  `MAX_DOCUMENT_CHARS = 2000`. Un devis scanné fait des milliers de caractères et
+  le contexte repart **à chaque tour** : tout envoyer multiplierait le prompt par
+  six sur un entretien complet, alors que l'entreprise, le montant et la nature des
+  travaux tiennent dans les premières lignes.
+- **⚠️ Une citation ne vaut que si elle nomme une pièce réellement jointe à ce
+  tour.** C'est la **seule exception** à « le modèle ne remplit jamais un montant »,
+  et elle tient entièrement à la source consultable : sans ce contrôle,
+  « le devis indique 3 180 € » est une phrase qu'un modèle peut écrire sans avoir
+  rien lu — avec, en prime, l'autorité d'une source inventée. `_parse_suggestion`
+  n'accepte donc que les `source` de la liste résolue *avant* l'appel, et exige un
+  `Decimal` valide.
+- **Une suggestion douteuse est retirée, la question reste posée.** On ne lève pas :
+  perdre le tour entier pour un champ facultatif serait disproportionné, et
+  l'utilisateur ne saurait pas pourquoi. Régression :
+  `TestACitationNeedsAConsultableSource::test_a_bad_suggestion_does_not_lose_the_question`.
+- **Et une citation ne remplit rien toute seule.** L'écran l'affiche **à côté** du
+  champ, avec un bouton « utiliser ce montant » ; le champ reste vide tant que
+  personne ne clique. Un montant recopié d'office redeviendrait indistinguable d'un
+  montant décidé par le foyer — exactement ce que la règle du lot 1 empêche. Ne
+  jamais « simplifier » en pré-remplissant. Attesté en vrai navigateur :
+  `e2e/project-assistant.spec.ts`, `PROJ-13`.
+- **`suggestion` est toujours dans le payload, `null` compris.** Un champ qui
+  apparaît et disparaît oblige le front à distinguer « absent » de « vide », alors
+  que les deux veulent dire la même chose ici.
+- **L'entretien ne possède pas le fichier.** Téléverser est un geste délibéré et
+  indépendant, qui passe par le `DocumentUploadDialog` **existant** : le fichier
+  entre dans la bibliothèque du foyer comme n'importe quel autre. Un entretien
+  abandonné le laisse donc là, **sans lien** — comportement attendu, figé par
+  `test_an_abandoned_interview_leaves_the_file_in_the_library` pour qu'on ne le
+  « corrige » pas : faire l'inverse demanderait une transaction qui embrasse un
+  envoi de fichier.
+- **Un id inconnu à la création est ignoré, il ne perd pas le chantier.** Le
+  document a pu être supprimé entre l'entretien et la validation, et perdre un plan
+  relu pour une pièce jointe manquante serait disproportionné : les pièces sont un
+  complément, pas la matière du plan.
+- **La liaison passe par `documents.services.link_document`** (upsert idempotent),
+  jamais par un `DocumentLink.objects.create` — c'est le seul point d'écriture sur
+  cette table.
+- **« Joindre » n'apparaît qu'une fois l'entretien commencé**, et c'est le cœur du
+  lot : dans la version rollbackée, le téléversement était un passage **obligé
+  placé avant** la génération, ce qui rendait la création lourde avant même la
+  première question. On parle d'abord, on joint si on a quelque chose.
+- Les pièces jointes **ne vivent pas dans le brouillon** de relecture : elles ne se
+  relisent pas, elles se joignent. Elles voyagent à côté du plan, du premier tour à
+  la création.
+
 
 ## Notes / décisions produit
 

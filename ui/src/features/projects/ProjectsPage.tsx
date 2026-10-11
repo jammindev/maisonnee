@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FolderOpen, FolderKanban } from 'lucide-react';
+import { FolderOpen, FolderKanban, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import ListPage from '@/components/ListPage';
@@ -8,6 +8,7 @@ import { FilterBar } from '@/design-system/filter-bar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useDeleteWithUndo } from '@/lib/useDeleteWithUndo';
 import { useDelayedLoading } from '@/lib/useDelayedLoading';
+import { useCapability } from '@/lib/capabilities';
 import type { ProjectListItem, ProjectGroupItem } from '@/lib/api/projects';
 import {
   useProjects,
@@ -19,6 +20,7 @@ import {
 import ProjectCard from './ProjectCard';
 import ProjectDialog from './ProjectDialog';
 import ProjectPurchaseDialog from './ProjectPurchaseDialog';
+import ProjectAssistantDialog from './assistant/ProjectAssistantDialog';
 import GroupCard from './GroupCard';
 import GroupDialog from './GroupDialog';
 
@@ -41,6 +43,13 @@ export default function ProjectsPage() {
 
   // Project dialog
   const [projectDialogOpen, setProjectDialogOpen] = React.useState(false);
+
+  // Création assistée (parcours 32). La capacité décide de la **présence** du
+  // bouton, jamais de son état désactivé : un bouton grisé promet et dément dans
+  // le même geste, et le repli n'est pas une version dégradée de l'entretien —
+  // c'est le formulaire, qui est juste à côté.
+  const [assistantOpen, setAssistantOpen] = React.useState(false);
+  const { available: canUseAssistant } = useCapability('project_assistant');
   const [editingProject, setEditingProject] = React.useState<ProjectListItem | null>(null);
 
   // Group dialog
@@ -148,13 +157,25 @@ export default function ProjectsPage() {
         actions={(tab) => {
           if (tab === 'projects') {
             return (
-              <button
-                type="button"
-                onClick={() => setProjectDialogOpen(true)}
-                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-              >
-                {t('projects.new')}
-              </button>
+              <div className="flex items-center gap-2">
+                {canUseAssistant ? (
+                  <button
+                    type="button"
+                    onClick={() => setAssistantOpen(true)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-foreground"
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" aria-hidden />
+                    {t('projects.assistant.new')}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setProjectDialogOpen(true)}
+                  className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+                >
+                  {t('projects.new')}
+                </button>
+              </div>
             );
           }
           if (tab === 'groups') {
@@ -324,6 +345,7 @@ export default function ProjectsPage() {
       </TabShell>
 
       {/* Dialogs — outside TabShell to avoid remount on tab switch */}
+      <ProjectAssistantDialog open={assistantOpen} onOpenChange={setAssistantOpen} />
       <ProjectDialog
         open={projectDialogOpen}
         onOpenChange={setProjectDialogOpen}

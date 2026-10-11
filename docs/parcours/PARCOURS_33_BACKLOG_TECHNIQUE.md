@@ -175,11 +175,10 @@ lot 2 s'était engagé à faire plutôt que de poser un champ mort par anticipat
   registre du lot 2 existait pour rendre visible).
 - `agent/tests/test_private_visibility.py` — l'argent compté sans être nommé.
 
-⚠️ **Collision de migration connue.** `projects/0009_project_is_private` (ce lot) et
-`projects/0009_project_default_budget` (PR #675, parcours 32) dépendent toutes deux de
-`0008`. Une fois les deux mergées, `projects` aura deux nœuds feuilles. Celui qui merge
-en second renumérote en `0010` et repointe `dependencies`. Signalé par la session
-`house-76`, vérifié depuis les deux branches.
+Migration : `projects/0010_project_is_private`, qui dépend de
+`0009_project_default_budget` (PR #675, parcours 32, mergée avant). Écrite d'abord en
+`0009` sur `0008`, elle a été renumérotée à la mise à jour avec `main` pour ne pas
+laisser deux nœuds feuilles à `projects`.
 
 **Le test qui compte** : la barre du budget, `coverage_ratio`, `Project.actual_cost`
 et le bilan mensuel donnent le **même** chiffre aux deux lecteurs, avant et après la

@@ -37,10 +37,19 @@ export const interactionKeys = {
   suppliers: () => [...interactionKeys.all, 'suppliers'] as const,
 };
 
+/**
+ * Le journal du foyer, par pages (voir `PAGE_SIZE` dans `InteractionsPage`).
+ *
+ * `placeholderData` garde la page précédente à l'écran pendant le chargement de
+ * la suivante — sans lui, chaque coup de flèche vide la liste puis la remplit, et
+ * comme le pager n'est rendu qu'avec la liste il disparaît sous le doigt au
+ * moment même où on veut recliquer. Même raison que `useBudgetOverview`.
+ */
 export function useInteractions(filters: InteractionFilters = {}) {
   return useQuery({
     queryKey: interactionKeys.list(filters),
     queryFn: () => fetchInteractions(filters),
+    placeholderData: (previous) => previous,
   });
 }
 

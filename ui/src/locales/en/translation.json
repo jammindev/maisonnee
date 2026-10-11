@@ -471,7 +471,21 @@
       "indexM3": "Index (m³)",
       "readingDate": "Reading date",
       "indexRequired": "Date and index are required.",
-      "recentTitle": "Latest readings"
+      "recentTitle": "Latest readings",
+      "since": "since {{date}}",
+      "first": "first reading",
+      "index": "index {{value}} m³"
+    },
+    "chart": {
+      "volume": "Usage",
+      "rate": "Usage rate",
+      "rateUnit": "L/day",
+      "estimatedFrom": "Estimated: no reading this month, spread between those of {{from}} and {{to}}.",
+      "partialPeriod": "Partially covered period: it starts or ends outside your readings.",
+      "legendEstimated": "estimated",
+      "legendPartial": "incomplete period",
+      "needsTwoReadings": "Two readings are needed to work out consumption.",
+      "averageRate": "that is {{rate}} {{unit}} on average"
     }
   },
   "weather": {
@@ -1523,7 +1537,7 @@
         "steps": {
           "create": {
             "title": "Create the project",
-            "body": "Give it a name, a description and a planned budget."
+            "body": "Two doors. “Create with the assistant” asks you a few questions, then proposes the project with its tasks and notes — nothing is created until you have reviewed it and unchecked what you do not need. Or fill in the form yourself, if you already know. During the interview you can attach a quote or a photo: the assistant uses it for its questions, and the file ends up on the project it creates."
           },
           "plan": {
             "title": "Gather tasks and notes",
@@ -3042,6 +3056,42 @@
     },
     "summary": {
       "budget": "Budget"
+    },
+    "assistant": {
+      "new": "Create with the assistant",
+      "title": "Create a project with the assistant",
+      "reviewTitle": "Review before creating",
+      "goalLabel": "What do you want to do?",
+      "goalPlaceholder": "I want to redo the deck…",
+      "intro": "One sentence is enough. The assistant then asks a few questions and proposes the project with its tasks and notes. Nothing is created until you have reviewed it.",
+      "start": "Start",
+      "next": "Answer",
+      "enough": "That’s enough, generate",
+      "thinking": "The assistant is thinking…",
+      "back": "Back to the interview",
+      "create": "Create the project",
+      "progress": "question {{asked}} of {{total}}",
+      "noAnswer": "(no answer)",
+      "failed": "The assistant could not answer. Rephrase, or move on.",
+      "created": "Project created.",
+      "reviewIntro": "Uncheck what you do not need, fix what is wrong. Nothing exists yet.",
+      "unresolvedRooms": "Rooms not found in your home, filed under the project’s own: {{rooms}}",
+      "chooseType": "Choose a type",
+      "tasksHeading": "Tasks ({{count}})",
+      "notesHeading": "Notes ({{count}})",
+      "noTasks": "No task proposed.",
+      "noNotes": "No note proposed.",
+      "answer": {
+        "amountPlaceholder": "An amount",
+        "otherPlaceholder": "…or something else",
+        "textPlaceholder": "Your answer",
+        "useAmount": "{{source}} states {{amount}} — use this amount"
+      },
+      "budgetLabel": "Spending envelope",
+      "budgetNone": "No envelope",
+      "budgetNew": "Create “{{name}}”",
+      "budgetHint": "It files the project’s expenses, it does not cap them — the ceiling stays the planned budget above.",
+      "attach": "Attach a quote or a photo"
     }
   },
   "notifications": {

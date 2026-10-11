@@ -57,6 +57,11 @@ export default function ProjectPurchaseDialog({
         onSubmit={handleSubmit}
         onCancel={() => onOpenChange(false)}
         externalError={error}
+        // L'enveloppe du chantier arrive pré-sélectionnée — modifiable : c'est un
+        // défaut, pas une contrainte. Sans elle, chaque achat repartait sur
+        // « aucun budget », donc sur l'écart `expense_without_budget` que l'app
+        // aurait ensuite réclamé de réparer.
+        initialBudgetId={project.default_budget ?? ''}
       />
     </SheetDialog>
   );

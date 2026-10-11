@@ -118,6 +118,55 @@ def test_no_user_facing_surface_still_says_house(relative):
     )
 
 
+#: Les commentaires — toutes syntaxes du front confondues. Une ligne qui commence
+#: par l'un de ces préfixes est de la prose de raisonnement, hors périmètre pour la
+#: même raison que les docstrings Python : douze d'entre elles disent « House » dans
+#: `apps/banking/` côté front, et les inclure rendrait le contrôle rouge à vie.
+_COMMENT = ("*", "//", "/*", "{/*")
+
+
+def test_no_frontend_code_names_the_old_product():
+    """Le titre d'onglet de **toutes** les pages disait « — House ».
+
+    Trouvé en ouvrant l'app, pas par ce test : la première version ne balayait que
+    les catalogues, les templates et nginx. Or `ui/src/components/PageHeader.tsx`
+    **compose** du texte visible en code (`document.title = ...`), donc il échappait
+    aux quatre locales — et c'était la surface la plus exposée de toutes, présente
+    sur chaque page, dans chaque onglet, dans chaque favori et dans l'historique du
+    navigateur.
+
+    La leçon vaut mieux que le correctif : *une liste de surfaces est une liste, et
+    une liste oublie.* D'où un balayage **récursif** du front, avec deux exclusions
+    qui ne rotent pas — les commentaires (règle déjà posée pour Python) et
+    `ui/src/gen/`, qui est régénéré depuis le schéma OpenAPI et n'est donc pas une
+    source à corriger.
+
+    La propriété tenue ici : **aucun code exécutable du front ne nomme le produit en
+    dur.** Tout ce que l'utilisateur lit vit dans `ui/src/locales/`, et ce qui est
+    composé en code doit l'être depuis une clé i18n ou depuis le nom courant.
+    """
+    root = Path(settings.BASE_DIR) / "ui" / "src"
+    offenders = []
+    for path in sorted(root.rglob("*.ts")) + sorted(root.rglob("*.tsx")):
+        relative = path.relative_to(Path(settings.BASE_DIR)).as_posix()
+        if relative.startswith("ui/src/gen/"):
+            continue
+        allowed = ALLOWED.get(relative, ())
+        for number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            stripped = line.strip()
+            if stripped.startswith(_COMMENT):
+                continue
+            if FORMER_NAME.search(line) and not any(e in line for e in allowed):
+                offenders.append(f"    {relative}:{number} : {stripped[:100]}")
+    assert not offenders, (
+        "du code du front nomme encore « House » :\n"
+        + "\n".join(offenders)
+        + f"\n  Le produit s'appelle {PRODUCT_NAME}."
+    )
+
+
 def test_every_declared_surface_exists():
     """Un chemin qui a bougé rend le contrôle silencieux, pas rouge.
 

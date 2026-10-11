@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { toLocalISODate } from '@/lib/format';
 import { useInvalidate } from '@/lib/invalidate';
 import type { Task, TaskStatus } from '@/lib/api/tasks';
 import { updateTaskStatus } from '@/lib/api/tasks';
@@ -29,7 +30,11 @@ function normalizeList<T>(data: unknown): T[] {
 }
 
 export function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Délègue au helper du projet : `toISOString()` convertit en UTC, donc à Paris
+  // minuit local recule d'un jour et toutes les bornes de ces cartes partaient
+  // décalées entre minuit et 2 h. C'est la règle « jamais toISOString() » de
+  // CLAUDE.md, dont cette fonction était la dernière entorse du tableau de bord.
+  return toLocalISODate(d);
 }
 
 // ── Query keys ────────────────────────────────────────────────────────────────

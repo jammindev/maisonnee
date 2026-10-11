@@ -73,8 +73,38 @@ services:
     # lancé » — ce qui est vrai avant que gunicorn n'accepte une connexion. La
     # remise à zéro enchaînerait alors un `exec` sur un process qui démarre encore.
     # `/health/` reste une preuve de vie et ne touche pas la base (cf. CLAUDE.md).
+    #
+    # ⚠️ **La sonde DOIT présenter l'en-tête `Host` du domaine.** Sans lui la requête
+    # part avec `Host: 127.0.0.1:8000`, que `ALLOWED_HOSTS` refuse en **400
+    # DisallowedHost** : l'application va parfaitement bien, mais elle décline la
+    # sonde au nom de sa propre sécurité. Le conteneur passe `unhealthy`, et deux
+    # choses tombent d'un coup :
+    #
+    #   1. **Traefik ignore les conteneurs `unhealthy`** — le routeur quitte sa table
+    #      et la vitrine publique répond 404. C'est le 404 de Traefik, pas celui de
+    #      l'app : `text/plain`, 19 octets, routeur `"-"` dans son log d'accès.
+    #   2. Le `up -d --wait` de `reset.sh` abandonne (`container demo-web-1 is
+    #      unhealthy`), donc la remise à zéro nocturne échoue elle aussi.
+    #
+    # Vécu en production : injoignable **et** plus resemée pendant douze jours. Le
+    # piège est qu'un healthcheck fautif ne mord qu'à la **recréation** du
+    # conteneur — il dort donc jusqu'au deploy suivant, longtemps après la revue.
+    # Régression : `apps/core/tests/test_demo_healthcheck.py`.
+    #
+    # ⚠️ Et surtout : **cette sonde est celle de `docker-compose.prod.yml`, mot pour
+    # mot.** Elle y existait déjà, correcte, avec le commentaire qui explique ce
+    # piège — et elle a quand même été réécrite de zéro ici, donc à nouveau fautive.
+    # `CLAUDE.md` § « Chercher avant de construire » : le helper du dépôt avant tout
+    # le reste, parce qu'« en écrire une dix-septième n'est pas neutre, c'est rouvrir
+    # le bug que la consolidation a fermé ». Toute sonde HTTP future se **copie**
+    # depuis l'autre compose ; le test vérifie que les deux restent identiques.
+    #
+    # `X-Forwarded-Proto` est conservé par cohérence stricte avec la prod. Il n'est
+    # pas indispensable — `SECURE_REDIRECT_EXEMPT` exempte déjà `^health/?$` de la
+    # redirection HTTPS — mais deux sondes qui divergent d'un en-tête finissent par
+    # diverger d'autre chose, et c'est la seconde qu'on oublie de corriger.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health/', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/health/', headers={'Host': '${DOMAIN}', 'X-Forwarded-Proto': 'https'}), timeout=5)"]
       interval: 10s
       timeout: 5s
       retries: 6
