@@ -243,6 +243,25 @@ class TestAPrivateItemStaysWithItsAuthor:
             client.get(reverse("interaction-list"), params), "subject"
         )
 
+    def test_project(self, duo):
+        from projects.models import Project
+
+        household, alice, bob = duo
+        Project.objects.create(
+            household=household, created_by=alice,
+            title="Cabane surprise", is_private=True,
+        )
+
+        client, params = _as(bob, household)
+        assert "Cabane surprise" not in _labels(
+            client.get(reverse("project-list"), params), "title"
+        )
+
+        client, params = _as(alice, household)
+        assert "Cabane surprise" in _labels(
+            client.get(reverse("project-list"), params), "title"
+        )
+
     def test_briefing(self, duo):
         from briefings.models import Briefing
 
@@ -264,44 +283,79 @@ class TestAPrivateItemStaysWithItsAuthor:
 
 
 @pytest.mark.django_db
-class TestAPrivateExpenseIsNeverHidden:
-    """L'exception, et la seule — écrite ici pour qu'on ait à la changer sciemment.
+class TestAPrivateExpenseIsMaskedNeverHidden:
+    """L'exception, et la seule — masquée, jamais cachée.
 
-    Une dépense privée reste servie à tout le foyer. Ce n'est pas un trou dans la
-    règle du dessus, c'est l'arbitrage du parcours 33 : ``Interaction(type=
-    "expense")`` alimente ``interactions.queries.expenses()``, point de vérité
-    unique de sept agrégations. La retirer d'une liste sans la retirer des totaux
-    donnerait au budget « Bricolage » deux valeurs selon le lecteur — « un compteur
-    ne peut pas avoir deux définitions ».
+    Une dépense privée reste servie à tout le foyer, et c'est l'arbitrage du
+    parcours 33 : ``Interaction(type="expense")`` alimente
+    ``interactions.queries.expenses()``, point de vérité unique de sept
+    agrégations. La retirer d'une liste sans la retirer des totaux donnerait au
+    budget « Bricolage » deux valeurs selon le lecteur — « un compteur ne peut pas
+    avoir deux définitions ».
 
-    Le secret d'une dépense porte donc sur son **contenu**, pas sur son existence :
-    le lot 4 remplacera sujet, fournisseur et projet source par « Dépense privée »
-    pour les autres membres. Tant que ce masquage n'est pas là, ce test échouera si
-    quelqu'un « corrige » l'exception en la cachant — ce qui est précisément le but.
+    Ce qui la protège, c'est le **masquage** de son contenu (lot 4) : le montant,
+    la date et le budget restent — ce sont eux qui font que la liste et la barre se
+    recomposent — et ce qui **nomme** disparaît. Sans ça, privatiser un chantier
+    aurait fait fuiter son titre en clair : le sujet auto-généré d'un achat de
+    chantier est ``"Achat — {titre}"``.
+
+    Les deux moitiés sont testées ensemble exprès. Cacher la ligne casserait les
+    totaux ; la laisser entière casserait le secret. Un test qui ne vérifierait
+    qu'une moitié laisserait « corriger » l'autre.
     """
 
-    def test_the_other_member_still_sees_the_row(self, duo):
+    def _private_expense(self, household, alice):
         from decimal import Decimal
 
         from django.utils import timezone
 
         from interactions.models import Interaction
 
-        household, alice, bob = duo
-        Interaction.objects.create(
+        return Interaction.objects.create(
             household=household, created_by=alice,
-            subject="Achat — Terrasse", type="expense", is_private=True,
-            amount=Decimal("250.00"), occurred_at=timezone.now(),
+            subject="Achat — Cabane surprise", type="expense", is_private=True,
+            supplier="Leroy Merlin", amount=Decimal("250.00"),
+            occurred_at=timezone.now(),
         )
 
-        client, params = _as(bob, household)
-        subjects = _labels(client.get(reverse("interaction-list"), params), "subject")
-        assert "Achat — Terrasse" in subjects, (
+    def _row_for(self, user, household, expense):
+        client, params = _as(user, household)
+        payload = client.get(reverse("interaction-list"), params).data
+        rows = payload if isinstance(payload, list) else (payload.get("results") or [])
+        return next((row for row in rows if str(row["id"]) == str(expense.id)), None)
+
+    def test_the_other_member_still_sees_the_row_and_its_amount(self, duo):
+        household, alice, bob = duo
+        expense = self._private_expense(household, alice)
+
+        row = self._row_for(bob, household, expense)
+        assert row is not None, (
             "Une dépense privée doit rester servie : sept agrégations la lisent, et "
             "la cacher en liste sans la retirer des totaux donne deux définitions au "
-            "même compteur. Ce qui doit disparaître pour Bob, c'est le *contenu* — "
-            "voir le lot 4 du parcours 33."
+            "même compteur."
         )
+        assert row["amount"] == "250.00", "le montant est ce qui recompose le total"
+
+    def test_but_nothing_that_names_it(self, duo):
+        household, alice, bob = duo
+        expense = self._private_expense(household, alice)
+
+        row = self._row_for(bob, household, expense)
+        assert row["is_redacted"] is True
+        assert row["subject"] == ""
+        assert row["supplier"] == ""
+        assert "Cabane surprise" not in str(row), (
+            "le titre du chantier ne doit apparaître nulle part dans ce que Bob reçoit"
+        )
+
+    def test_its_author_reads_it_whole(self, duo):
+        household, alice, bob = duo
+        expense = self._private_expense(household, alice)
+
+        row = self._row_for(alice, household, expense)
+        assert row["is_redacted"] is False
+        assert row["subject"] == "Achat — Cabane surprise"
+        assert row["supplier"] == "Leroy Merlin"
 
 
 # ── 3. Le catalogue ne peut pas prendre de retard sur le code ────────────────
@@ -320,6 +374,7 @@ class TestEveryPrivatisableModelIsAccountedFor:
         "documents.Document",
         "briefings.Briefing",
         "interactions.Interaction",
+        "projects.Project",
     }
 
     def test_no_model_carries_the_flag_without_a_test_or_a_named_exemption(self):
@@ -389,7 +444,17 @@ class TestEveryPrivatisableModelDeclaresItsRestriction:
         from core import visibility
 
         privatisable = set(_models_with_is_private())
-        inherited = set()  # confidentialité héritée : lot 4 (Tracker, Project…)
+
+        # La confidentialité **héritée** — un modèle qui se restreint sans porter de
+        # drapeau. C'est la raison d'être du registre : `Tracker` n'a pas de champ à
+        # inspecter, il hérite de son chantier (parcours 33, lot 4). Toute entrée
+        # ici est une dette nommée au même titre qu'une exemption : elle dit « ce
+        # modèle se restreint pour une raison qu'aucun champ ne raconte ».
+        inherited = {
+            model
+            for model in django_apps.get_models()
+            if _label(model) in {"trackers.Tracker"}
+        }
         stale = [
             _label(spec.model)
             for spec in visibility.REGISTRY

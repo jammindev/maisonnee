@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Badge } from '@/design-system/badge';
 import { Button } from '@/design-system/button';
+import PrivateBadge from '@/components/PrivateBadge';
 import { Card, CardTitle } from '@/design-system/card';
 import { pushBack } from '@/lib/backNavigation';
 import { appLocale } from '@/lib/format';
@@ -37,16 +38,28 @@ export default function InteractionCard({ item, onDelete }: InteractionCardProps
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to={`/app/interactions/${item.id}`}
-              state={pushBack(location)}
-              className="group text-foreground hover:text-primary"
-            >
-              <CardTitle className="text-inherit [&>span:last-child]:group-hover:underline">
-                {item.subject}
+            {item.is_redacted ? (
+              // Masqué, pas caché. La ligne et son montant restent — sept
+              // agrégations les lisent, et un total qu'on ne peut pas recomposer ne
+              // se lit pas — mais rien ici ne la nomme. Le lien de détail saute
+              // avec : il n'y aurait rien à y lire, et une promesse d'adresse qui
+              // mène à un écran vide se retourne contre l'app.
+              <CardTitle className="text-muted-foreground">
+                {t('privacy.redactedExpense')}
               </CardTitle>
-            </Link>
+            ) : (
+              <Link
+                to={`/app/interactions/${item.id}`}
+                state={pushBack(location)}
+                className="group text-foreground hover:text-primary"
+              >
+                <CardTitle className="text-inherit [&>span:last-child]:group-hover:underline">
+                  {item.subject}
+                </CardTitle>
+              </Link>
+            )}
             <Badge variant="outline">{t(typeLabelKey)}</Badge>
+            {item.is_redacted ? <PrivateBadge variant="icon" /> : null}
           </div>
 
           {item.content ? (

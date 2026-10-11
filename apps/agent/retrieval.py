@@ -131,7 +131,12 @@ def filter_visible_instances(pairs: list[tuple[SearchableSpec, Any]], viewer):
     return [
         (spec, obj)
         for spec, obj in pairs
-        if not visibility.has_spec(spec.model) or obj.pk in allowed[spec.entity_type]
+        if (not visibility.has_spec(spec.model) or obj.pk in allowed[spec.entity_type])
+        # Même raison que dans la boucle de recherche : ce qui est visible sans être
+        # lisible n'a rien à faire dans une citation. C'est le chemin de
+        # ``get_related`` et du contexte ancré — celui par lequel une pièce entre
+        # dans une conversation sans que personne l'ait cherchée.
+        and visibility.readable_for(obj, viewer)
     ]
 
 
@@ -203,6 +208,13 @@ def _search_one(
 
     hits: list[Hit] = []
     for obj in qs:
+        # ⚠️ Voir qu'une ligne existe et pouvoir la citer sont deux choses. Une
+        # dépense de chantier privé reste dans le queryset — sept agrégations la
+        # lisent — mais son sujet est « Achat — <titre du chantier> » : la citer
+        # ferait fuiter, dans le chat, le nom de ce qu'on venait de cacher. Il n'y
+        # a rien à masquer ici, il n'y a rien à citer.
+        if not visibility.readable_for(obj, viewer):
+            continue
         snippet = _pick_snippet(obj, spec.search_fields)
         hits.append(
             Hit(

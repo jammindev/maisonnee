@@ -50,6 +50,9 @@ export interface ProjectListItem {
   /** Enveloppe à laquelle imputer par défaut les dépenses du chantier. */
   default_budget: string | null;
   is_pinned: boolean;
+  /** Privé : seul le créateur voit le chantier — et, par héritage, ses tâches,
+   * notes, dépenses, documents et trackers. Jamais ses zones. */
+  is_private: boolean;
   zones: ProjectZoneItem[];
   created_at: string;
   updated_at: string;

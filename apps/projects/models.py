@@ -51,6 +51,15 @@ class Project(HouseholdScopedModel):
     cover_interaction = models.ForeignKey("interactions.Interaction", on_delete=models.SET_NULL, null=True, blank=True, related_name="cover_for_projects")
     project_group = models.ForeignKey(ProjectGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name="projects")
     type = models.CharField(max_length=32, choices=Type.choices, default=Type.OTHER)
+    is_private = models.BooleanField(
+        default=False,
+        help_text=(
+            "Privé : seul le créateur voit ce chantier — et, par héritage, tout ce "
+            "qu'il contient. La visibilité des enfants se CALCULE à la lecture "
+            "(core.visibility) ; rien n'est écrit sur eux, sinon dé-privatiser ne "
+            "saurait plus ce qui était privé avant."
+        ),
+    )
     #: L'enveloppe à laquelle imputer par défaut les dépenses du chantier
     #: (parcours 32, lot 4). Elle **classe**, elle ne plafonne pas : le plafond du
     #: chantier reste `planned_budget`, et une enveloppe créée pour un chantier

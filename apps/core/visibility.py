@@ -105,6 +105,19 @@ class PrivacySpec:
     ``visible_to_creator`` — ne pas en réécrire une variante.
     """
 
+    readable: Callable[[Model, Any], bool] | None = None
+    """``(instance, viewer) -> bool`` — le lecteur a-t-il le droit d'en lire le
+    **contenu** ?
+
+    Deux questions différentes, et il a fallu les séparer : *voir qu'une ligne
+    existe* et *lire ce qu'elle dit*. Pour presque tout, elles ont la même réponse —
+    ce qu'on ne peut pas lire, on ne le voit pas, et ``narrow`` suffit. L'argent est
+    l'exception : une dépense reste dans la liste parce que sept agrégations la
+    lisent, mais son sujet nomme le chantier privé auquel elle appartient.
+
+    ``None`` (le cas courant) veut dire « ce qui est visible est lisible ».
+    """
+
 
 REGISTRY: list[PrivacySpec] = []
 
@@ -162,4 +175,22 @@ def narrow_for(queryset: QuerySet, viewer) -> QuerySet:
     if spec is None:
         return queryset
     return spec.narrow(queryset, viewer)
+
+
+def readable_for(instance, viewer) -> bool:
+    """``viewer`` a-t-il le droit de lire le **contenu** de ``instance`` ?
+
+    Le pendant de ``narrow_for`` pour ce que ``narrow_for`` laisse passer. Appelé
+    par tout ce qui **rend** un contenu — le serializer REST, l'étiquette et
+    l'extrait d'une citation de l'agent — et jamais par ce qui **compte** : un
+    total n'a pas de contenu, il a une valeur, et c'est justement ce qui reste
+    partagé.
+
+    Un modèle sans spec, ou dont le spec ne déclare pas ``readable``, est lisible
+    dès lors qu'il est visible.
+    """
+    spec = find_spec(type(instance))
+    if spec is None or spec.readable is None:
+        return True
+    return spec.readable(instance, viewer)
 

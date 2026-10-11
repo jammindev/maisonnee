@@ -9,17 +9,14 @@ class DocumentsConfig(AppConfig):
         import documents.signals  # noqa: F401
 
         from agent.searchables import SearchableSpec, register
-        from core.visibility import (
-            PrivacySpec,
-            register as register_privacy,
-            visible_to_creator,
-        )
+        from core.visibility import PrivacySpec, register as register_privacy
         from .models import Document
+        from .visibility import visible_documents
 
         # Confidentialité — la déclaration vit ici, une seule fois, et vaut pour
         # toutes les portes de lecture (liste REST, palette ⌘K, agent, contexte
         # ancré). Voir ``core.visibility``.
-        register_privacy(PrivacySpec(model=Document, narrow=visible_to_creator))
+        register_privacy(PrivacySpec(model=Document, narrow=visible_documents))
 
         register(SearchableSpec(
             entity_type='document',

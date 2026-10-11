@@ -440,6 +440,32 @@ dans le chemin par défaut — le scope foyer vient du manager, la confidentiali
   règle que `banking.compliance.REGISTRY` : ajouter un mécanisme, c'est ajouter sa
   déclaration. Le contrôle lit le **registre** et surtout pas le champ, faute de
   quoi il ne verrait jamais arriver une confidentialité héritée.
+- **⚠️ Voir qu'une ligne existe et lire ce qu'elle dit sont deux questions.**
+  `narrow_for` répond à la première, `readable_for` à la seconde, et pour presque
+  tout la réponse est la même — ce qu'on ne peut pas lire, on ne le voit pas.
+  L'argent est la seule exception du dépôt : une dépense reste en liste parce que
+  sept agrégations la lisent, mais son sujet auto-généré est
+  `"Achat — {titre du chantier}"`. Sans la seconde question, privatiser un chantier
+  faisait fuiter son titre en clair dans la liste des dépenses, sur la ligne
+  bancaire rapprochée **et** dans les citations de l'assistant — partout sauf là où
+  on venait de le cacher. Tout ce qui **rend** un contenu appelle donc
+  `readable_for` ; ce qui **compte** ne l'appelle jamais, un total n'ayant pas de
+  contenu.
+- **Un chantier privé rend privé ce qu'il contient — et la cascade se calcule.**
+  Cinq enfants (tâches, notes, dépenses masquées, documents, trackers) ; **jamais
+  les zones**, une pièce de la maison étant structurelle. Rien n'est écrit sur les
+  enfants : dé-privatiser rend donc exactement l'état d'avant, un enfant créé plus
+  tard hérite sans qu'on y pense, et `tasks_private_not_assigned` n'est jamais
+  heurtée. ⚠️ Le filtre d'héritage passe par `exclude(project__in=…)` et **jamais**
+  par un `~Q(...)` écrit à la main : le champ est nullable, et `NOT (x IN (…))` vaut
+  NULL — donc faux — pour une ligne sans projet ; la version naïve fait disparaître
+  **toutes les tâches sans chantier**, et une liste vide ne ressemble pas à un
+  problème de confidentialité.
+- **On ne privatise pas le travail d'autrui : 400 nommé, avec le compte.** Les deux
+  autres réponses étaient mauvaises symétriquement — « le chantier gagne »
+  confisque à l'autre membre ce qu'il a écrit, « le créateur garde » fait mentir la
+  case. Corollaire qui simplifie tout : la cascade ne porte jamais que sur ce que le
+  demandeur a créé lui-même.
 
 **Pourquoi un test et pas une relecture :** le défaut est invisible deux fois. En
 revue, un `get_queryset()` qui oublie la clause ressemble trait pour trait à celui

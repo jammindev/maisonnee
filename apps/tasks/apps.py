@@ -9,17 +9,14 @@ class TasksConfig(AppConfig):
         from agent.listables import ListableSpec, ListFilter, register as register_listable
         from agent.searchables import SearchableSpec, register
         from agent.writables import WritableSpec, register as register_writable
-        from core.visibility import (
-            PrivacySpec,
-            register as register_privacy,
-            visible_to_creator,
-        )
+        from core.visibility import PrivacySpec, register as register_privacy
         from .models import Task
+        from .visibility import visible_tasks
 
         # Confidentialité — la déclaration vit ici, une seule fois, et vaut pour
         # toutes les portes de lecture (liste REST, palette ⌘K, agent, contexte
         # ancré). Voir ``core.visibility``.
-        register_privacy(PrivacySpec(model=Task, narrow=visible_to_creator))
+        register_privacy(PrivacySpec(model=Task, narrow=visible_tasks))
 
         register(SearchableSpec(
             entity_type='task',

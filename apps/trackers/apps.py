@@ -6,10 +6,18 @@ class TrackersConfig(AppConfig):
     name = 'trackers'
 
     def ready(self):
+        from core.visibility import PrivacySpec, register as register_privacy
+        from .models import Tracker
+        from .visibility import visible_trackers
+
+        # Un tracker n'a pas de confidentialité propre — il hérite de celle de son
+        # chantier. C'est exactement le cas qui a justifié le registre : sans
+        # drapeau à inspecter, aucun ``grep`` de ``is_private`` ne l'aurait vu.
+        register_privacy(PrivacySpec(model=Tracker, narrow=visible_trackers))
+
         from agent.listables import ListableSpec, ListFilter, register as register_listable
         from agent.searchables import SearchableSpec, register
         from agent.writables import WritableSpec, register as register_writable
-        from .models import Tracker
 
         register(SearchableSpec(
             entity_type='tracker',

@@ -3,6 +3,7 @@ import { Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/design-system/badge';
 import { Button } from '@/design-system/button';
+import PrivateBadge from '@/components/PrivateBadge';
 import { Card, CardTitle } from '@/design-system/card';
 import CardActions, { type CardAction } from '@/components/CardActions';
 import { formatAmount } from '@/lib/format';
@@ -79,6 +80,7 @@ export default function ProjectCard({
           >
             <CardTitle className="font-semibold leading-tight text-inherit [&>span:last-child]:group-hover:underline">{project.title}</CardTitle>
           </Link>
+          {project.is_private ? <PrivateBadge className="mt-1" /> : null}
           {project.description ? (
             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{project.description}</p>
           ) : null}
