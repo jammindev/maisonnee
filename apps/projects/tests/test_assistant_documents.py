@@ -29,6 +29,7 @@ from rest_framework.test import APIClient
 from accounts.tests.factories import UserFactory
 from agent.llm import LLMResponse
 from documents.models import Document, DocumentLink
+from documents.services import link_document
 from households.models import Household, HouseholdMember
 from projects.models import Project
 from zones.models import Zone
@@ -175,6 +176,69 @@ class TestAPrivateDocumentNeverEntersThePrompt:
             owner_client.post(STEP_URL, _body([theirs]), format="json")
 
         assert "CHEZ EUX" not in complete.call_args.kwargs["user"]
+
+
+@pytest.fixture
+def surprise_quote(household, roommate):
+    """Un document **non privé** d'un autre membre, rangé dans son chantier privé.
+
+    Son drapeau propre ne dit rien : c'est le chantier qui le cache (#664). Un
+    contrôle qui ne lit que ``Document.is_private`` le laisse passer.
+    """
+    project = Project.objects.create(
+        household=household, created_by=roommate, title="Cabane surprise", is_private=True
+    )
+    document = Document.objects.create(
+        household=household,
+        created_by=roommate,
+        name="devis-cabane.pdf",
+        file_path="docs/cabane.pdf",
+        ocr_text="CABANE SURPRISE POUR L'ANNIVERSAIRE",
+    )
+    link_document(entity=project, document=document, user=roommate)
+    return document
+
+
+@pytest.mark.usefixtures("with_key")
+class TestAFileHiddenByAPrivateProjectStaysHidden:
+    """La confidentialité héritée d'un chantier privé vaut aussi pour l'entretien.
+
+    Les deux portes de l'entretien — le prompt et la liaison au chantier créé —
+    passent par ``core.visibility.narrow_for`` et non par ``visible_to_creator`` :
+    ce dernier ne lit que le drapeau propre du document, et ignorerait qu'il est
+    rangé dans le chantier privé d'un autre membre.
+    """
+
+    def test_its_text_is_not_sent(self, household, surprise_quote, owner_client):
+        with patch("projects.assistant.get_llm_client") as get_client:
+            complete = get_client.return_value.complete
+            complete.return_value = _question()
+
+            owner_client.post(STEP_URL, _body([surprise_quote]), format="json")
+
+        sent = complete.call_args.kwargs["user"]
+        assert "CABANE SURPRISE" not in sent
+        assert "devis-cabane.pdf" not in sent
+
+    def test_it_is_not_linked_to_the_created_project(
+        self, household, garden, surprise_quote, owner_client
+    ):
+        response = owner_client.post(
+            CREATE_URL,
+            {
+                "project": {"title": "Terrasse", "zone_ids": [str(garden.id)]},
+                "tasks": [],
+                "notes": [],
+                "document_ids": [surprise_quote.id],
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        created = Project.objects.get(title="Terrasse")
+        assert not DocumentLink.objects.filter(
+            object_id=created.id, document=surprise_quote
+        ).exists()
 
 
 @pytest.mark.usefixtures("with_key")

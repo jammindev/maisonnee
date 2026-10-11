@@ -227,11 +227,14 @@ un `DocumentLink` par pièce. Régression :
   de la clé est figée par `TestADocumentKeyIsAnInteger` pour que la coercition ne
   devienne pas un mystère.
 - **⚠️ Un document privé d'un autre membre n'entre jamais dans le prompt**, et la
-  restriction passe par `core.visibility.visible_to_creator` — jamais par un `Q`
-  réécrit sur place. Ce serait la fuite du privé par une **huitième porte**, avec
-  un intermédiaire de plus : un texte parti chez un fournisseur ne se rattrape
-  pas. Même règle à la **liaison** : accrocher le privé d'un autre à un chantier
-  que tout le foyer voit publierait le fichier par l'autre bout.
+  restriction passe par `core.visibility.narrow_for` — jamais par un `Q` réécrit
+  sur place. Ce serait la fuite du privé par une **huitième porte**, avec un
+  intermédiaire de plus : un texte parti chez un fournisseur ne se rattrape pas.
+  Même règle à la **liaison** : accrocher le privé d'un autre à un chantier que
+  tout le foyer voit publierait le fichier par l'autre bout. `narrow_for` et pas
+  `visible_to_creator` : ce dernier ne lit que le drapeau propre du document, et
+  laisserait passer une pièce rangée dans le **chantier privé** d'un autre membre
+  (`TestAFileHiddenByAPrivateProjectStaysHidden`).
 - **Le scope foyer s'applique avant tout le reste** : un id venu du client ne se
   croit pas. Un document d'un autre foyer est **ignoré, pas refusé en 403** —
   divergence assumée avec le critère du backlog. À ce point du code, un id

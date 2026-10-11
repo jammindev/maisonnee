@@ -379,21 +379,26 @@ def _zone_ids(household, names) -> tuple[list[str], list[str]]:
 def _readable_documents(household, viewer, document_ids):
     """Les pièces jointes que **ce lecteur** a le droit de lire, dans l'ordre reçu.
 
-    La restriction passe par `core.visibility.visible_to_creator`, jamais par un
-    `Q` réécrit ici : c'est le module qui existe pour que la liste, la permission
+    La restriction passe par `core.visibility.narrow_for`, jamais par un `Q`
+    réécrit ici : c'est le module qui existe pour que la liste, la permission
     objet et le contexte de l'assistant ne puissent pas donner trois réponses. Un
     document privé d'un autre membre ne doit pas entrer dans un prompt — ce serait
     la même fuite que celle des notes privées, avec un intermédiaire de plus.
 
+    ⚠️ `narrow_for` et pas `visible_to_creator` : ce dernier ne lit que le
+    drapeau propre du document, et laisserait passer une pièce rangée dans le
+    chantier privé d'un autre membre (#664) — c'est le spec de `documents` qui
+    sait qu'un chantier peut cacher ce qu'il contient.
+
     Le scope foyer est appliqué en premier : un id venu du client ne se croit pas.
     """
-    from core.visibility import visible_to_creator
+    from core.visibility import narrow_for
     from documents.models import Document
 
     ids = [str(value) for value in (document_ids or [])][:MAX_DOCUMENTS]
     if not ids:
         return []
-    readable = visible_to_creator(
+    readable = narrow_for(
         Document.objects.filter(household=household, id__in=ids), viewer
     )
     by_id = {str(document.id): document for document in readable}

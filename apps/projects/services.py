@@ -240,11 +240,14 @@ def _link_documents(project, user, document_ids) -> None:
     if not document_ids:
         return
 
-    from core.visibility import visible_to_creator
+    from core.visibility import narrow_for
     from documents.models import Document
     from documents.services import link_document
 
-    readable = visible_to_creator(
+    # `narrow_for`, pas `visible_to_creator` : voir `assistant._readable_documents`
+    # — une pièce rangée dans le chantier privé d'un autre membre est cachée par
+    # ce chantier, pas par son propre drapeau.
+    readable = narrow_for(
         Document.objects.filter(household=project.household, id__in=document_ids), user
     )
     for document in readable:
