@@ -142,10 +142,14 @@ export default function DocumentDetailPage() {
                       )}
                       {doc.notes && <p className="text-muted-foreground">{doc.notes}</p>}
                       {doc.file_url ? (
+                        /* `download`, jamais `target="_blank"` : en PWA installée il n'y a
+                           pas de barre de navigation, et `/media/…` est same-origin dans le
+                           scope du manifeste — la fenêtre de l'app l'ouvrirait **sur place**,
+                           sans rien pour revenir. Garde-fou :
+                           `ui/src/lib/pwa/stored-file-links.test.ts`. */
                         <a
                           href={doc.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          download
                           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                         >
                           <Download className="h-3.5 w-3.5" />
