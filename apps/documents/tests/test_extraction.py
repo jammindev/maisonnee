@@ -272,3 +272,113 @@ def household(db, owner):
     owner.active_household = instance
     owner.save(update_fields=["active_household"])
     return instance
+
+
+@pytest.mark.django_db
+class TestExtractedTextNeverCarriesNulBytes:
+    """Postgres refuse 0x00 dans une colonne texte.
+
+    Le texte extrait est du contenu **non maîtrisé** : il se nettoie à la
+    frontière qui le produit, une fois, plutôt qu'à chacun de ses trois
+    consommateurs (envoi, backfill, reprocess). Le chemin PDF, où le NUL
+    déclenche en plus un repli, a sa propre classe plus bas.
+    """
+
+    def test_strip_nul_removes_only_the_nul(self):
+        assert extraction._strip_nul("a\x00b") == "ab"
+        assert extraction._strip_nul("déjà\x00 vu") == "déjà vu"
+        assert extraction._strip_nul("propre") == "propre"
+        assert extraction._strip_nul("") == ""
+
+    def test_vision_text_reaches_the_caller_without_nul(self, monkeypatch, household, owner):
+        path = _save("docs/scan.jpg", _make_jpeg_bytes())
+        document = Document.objects.create(
+            household=household,
+            created_by=owner,
+            file_path=path,
+            name="scan",
+            mime_type="image/jpeg",
+            type="document",
+        )
+        monkeypatch.setattr(
+            extraction, "_extract_with_vision", lambda *a, **kw: "FACTURE\x00 2026"
+        )
+
+        text, method = extraction.extract_text(document)
+
+        assert method == "vision_haiku"
+        assert "\x00" not in text
+        assert text == "FACTURE 2026"
+
+
+@pytest.mark.django_db
+class TestALossyTextLayerFallsBackToVision:
+    """Un NUL dit que le PDF ne sait pas nommer un de ses glyphes.
+
+    Cas réel : les ligatures `fi`/`fl` d'une fonte Type3 sous-ensemblée, dont
+    la table ToUnicode déclare `<AB> -> <0000>` et dont les glyphes s'appellent
+    `/gAB`. « bénéficiaire » ressort « béné<NUL>ciaire » : le caractère n'est
+    récupérable nulle part dans la couche texte, seuls les pixels le portent.
+    C'est exactement la situation d'un PDF scanné, donc le même repli.
+    """
+
+    def _pdf_document(self, household, owner, path):
+        return Document.objects.create(
+            household=household,
+            created_by=owner,
+            file_path=path,
+            name="form",
+            mime_type="application/pdf",
+            type="document",
+        )
+
+    def test_nul_in_pypdf_text_triggers_the_vision_fallback(self, monkeypatch, household, owner):
+        path = _save("docs/ligatures.pdf", _make_pdf_bytes())
+        document = self._pdf_document(household, owner, path)
+        monkeypatch.setattr(extraction, "_extract_with_pypdf", lambda _b: "le béné\x00ciaire")
+        monkeypatch.setattr(
+            extraction, "_extract_pdf_with_vision", lambda *a, **kw: "le bénéficiaire"
+        )
+
+        text, method = extraction.extract_text(document)
+
+        assert method == "pdf_vision_haiku"
+        assert text == "le bénéficiaire"
+
+    def test_degraded_text_is_kept_and_flagged_when_vision_is_unavailable(
+        self, monkeypatch, household, owner
+    ):
+        """Pas de clé Anthropic : on garde le texte, on ne perd pas le document.
+
+        Mais il se dit `pypdf_lossy` — un texte faux qu'on croit bon ne se
+        corrige jamais.
+        """
+        path = _save("docs/ligatures-nokey.pdf", _make_pdf_bytes())
+        document = self._pdf_document(household, owner, path)
+        monkeypatch.setattr(extraction, "_extract_with_pypdf", lambda _b: "le béné\x00ciaire")
+        # Ce que rend `_extract_pdf_with_vision` sans client configuré.
+        monkeypatch.setattr(extraction, "_extract_pdf_with_vision", lambda *a, **kw: "")
+
+        text, method = extraction.extract_text(document)
+
+        assert method == "pypdf_lossy"
+        assert text == "le bénéciaire"
+        assert "\x00" not in text
+
+    def test_a_clean_pdf_never_pays_for_vision(self, monkeypatch, household, owner):
+        """Le repli coûte un appel par page : il ne se déclenche pas pour rien."""
+        path = _save("docs/clean.pdf", _make_pdf_bytes())
+        document = self._pdf_document(household, owner, path)
+        monkeypatch.setattr(extraction, "_extract_with_pypdf", lambda _b: "texte propre")
+
+        called = []
+        monkeypatch.setattr(
+            extraction,
+            "_extract_pdf_with_vision",
+            lambda *a, **kw: called.append(1) or "",
+        )
+
+        text, method = extraction.extract_text(document)
+
+        assert (text, method) == ("texte propre", "pypdf")
+        assert called == []

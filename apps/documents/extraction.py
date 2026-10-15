@@ -149,7 +149,36 @@ def _extract_pdf_with_vision(
     return "\n\n".join(page_texts).strip()
 
 
+def _strip_nul(text: str) -> str:
+    """Retire les octets NUL (0x00) d'un texte extrait.
+
+    Postgres refuse 0x00 dans une colonne texte — l'écriture lève `DataError`.
+    Or le texte extrait n'est pas du contenu maîtrisé : un PDF de formulaire
+    signé (AcroForm) en rend couramment via pypdf, et une réponse Vision peut
+    en porter aussi. Un envoi a ainsi répondu 500 **après** la création du
+    document : l'utilisateur voyait un échec sur une opération réussie, et
+    réessayait — donc créait un doublon.
+
+    Le nettoyage vit ici, au seul endroit qui produit ce texte, et non chez ses
+    trois consommateurs (envoi, backfill, reprocess) : trois copies d'un même
+    garde-fou finissent par diverger, et c'est celle qu'on oublie qui casse.
+    """
+    return text.replace("\x00", "") if text else text
+
+
 def extract_text(
+    document: "Document", *, feature: str = DEFAULT_FEATURE, user=None
+) -> ExtractionResult:
+    """Extract text content from a stored document — jamais d'octet NUL.
+
+    Enveloppe :func:`_extract_text` pour garantir la propriété sur **toutes**
+    ses branches, présentes et à venir. Voir :func:`_strip_nul` pour le pourquoi.
+    """
+    text, method = _extract_text(document, feature=feature, user=user)
+    return _strip_nul(text), method
+
+
+def _extract_text(
     document: "Document", *, feature: str = DEFAULT_FEATURE, user=None
 ) -> ExtractionResult:
     """Extract text content from a stored document.
@@ -162,6 +191,8 @@ def extract_text(
     - ``"vision_haiku"``     : Vision called on an image, returned text
     - ``"vision_empty"``     : Vision called on an image, returned no text
     - ``"pypdf"``            : pypdf returned text from a text-based PDF
+    - ``"pypdf_lossy"``      : pypdf text carrying unmapped glyphs (NUL), kept
+                               because Vision was unavailable or silent
     - ``"pdf_vision_haiku"`` : pypdf was empty, Vision OCR'd each page successfully
     - ``"pdf_vision_empty"`` : pypdf was empty, Vision called on each page but no text
     - ``"skipped"``          : not attempted (no file, unsupported mime, IO error)
@@ -206,20 +237,35 @@ def extract_text(
         except Exception as exc:
             logger.warning("extraction: pypdf failed for %s: %s", document.file_path, exc)
             text = ""
-        if text:
+        if text and "\x00" not in text:
             return text, "pypdf"
 
-        # Scanned/image-only PDF — fall back to Vision page by page.
+        # Deux situations mènent ici, et elles se traitent pareil :
+        #  - aucun texte : PDF scanné, la page est une image ;
+        #  - du texte **lacunaire** : un NUL veut dire que le PDF déclare
+        #    lui-même `<code> -> U+0000` pour un glyphe. C'est le cas des
+        #    ligatures `fi`/`fl` des fontes Type3 sous-ensemblées, très
+        #    courantes dans les formulaires administratifs — « bénéficiaire »
+        #    ressort « béné<NUL>ciaire ». Le caractère est irrécupérable côté
+        #    texte (la table ToUnicode et les noms de glyphes, `/gAB`, ne
+        #    disent rien) : seuls les pixels le portent encore.
         try:
             vision_text = _extract_pdf_with_vision(
                 file_bytes, document=document, feature=feature, user=user
             )
         except Exception as exc:
             logger.warning("extraction: pdf-vision failed for %s: %s", document.file_path, exc)
-            return "", "pdf_vision_empty"
-        if not vision_text:
-            return "", "pdf_vision_empty"
-        return vision_text, "pdf_vision_haiku"
+            vision_text = ""
+        if vision_text:
+            return vision_text, "pdf_vision_haiku"
+
+        # Vision muette ou indisponible (pas de clé : `_extract_pdf_with_vision`
+        # rend "" sans appeler personne). Un texte à 99 % juste vaut mieux que
+        # rien — mais il se **dit** dégradé plutôt que de passer pour du pypdf
+        # propre : un texte faux qu'on croit bon ne se corrige jamais.
+        if text:
+            return text, "pypdf_lossy"
+        return "", "pdf_vision_empty"
 
     return "", "skipped"
 
